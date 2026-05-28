@@ -48,7 +48,7 @@ class MediaItem(models.Model):
     display_order = models.PositiveIntegerField(default=0)
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='local')
     provider_public_id = models.CharField(max_length=500, blank=True)
-    original_file = models.FileField(upload_to='media/originals/', null=True, blank=True)
+    original_file = models.FileField(upload_to='gallery/originals/', null=True, blank=True)
     public_url = models.URLField(max_length=1000, blank=True)
     thumbnail_url = models.URLField(max_length=1000, blank=True)
     width = models.PositiveIntegerField(null=True, blank=True)
