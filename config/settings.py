@@ -24,7 +24,7 @@ load_dotenv(BASE_DIR / ".env")
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-dev-secret-key")
+SECRET_KEY = os.environ["SECRET_KEY"]  # Required — set in .env (copy .env.example)
 
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
@@ -32,6 +32,14 @@ ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
     if host.strip()
+]
+
+# CSRF trusted origins — required when frontend runs on a different origin or HTTPS.
+# Leave empty in development; populate in production via env.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
 ]
 
 
