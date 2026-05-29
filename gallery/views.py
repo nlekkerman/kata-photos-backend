@@ -7,15 +7,25 @@ from .serializers import (
     MediaItemPublicSerializer,
 )
 
+_ALLOWED_LANGS = ('en', 'bs')
 
-class AlbumListView(generics.ListAPIView):
+
+class LangContextMixin:
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        raw_lang = self.request.query_params.get('lang', 'en').lower()
+        context['lang'] = raw_lang if raw_lang in _ALLOWED_LANGS else 'en'
+        return context
+
+
+class AlbumListView(LangContextMixin, generics.ListAPIView):
     serializer_class = AlbumListSerializer
 
     def get_queryset(self):
         return Album.objects.filter(is_published=True)
 
 
-class AlbumDetailView(generics.RetrieveAPIView):
+class AlbumDetailView(LangContextMixin, generics.RetrieveAPIView):
     serializer_class = AlbumDetailSerializer
     lookup_field = 'slug'
 
@@ -23,7 +33,7 @@ class AlbumDetailView(generics.RetrieveAPIView):
         return Album.objects.filter(is_published=True)
 
 
-class AlbumMediaListView(generics.ListAPIView):
+class AlbumMediaListView(LangContextMixin, generics.ListAPIView):
     serializer_class = MediaItemPublicSerializer
 
     def get_queryset(self):
@@ -33,7 +43,7 @@ class AlbumMediaListView(generics.ListAPIView):
         return MediaItem.objects.filter(album=album, is_published=True)
 
 
-class MediaItemDetailView(generics.RetrieveAPIView):
+class MediaItemDetailView(LangContextMixin, generics.RetrieveAPIView):
     serializer_class = MediaItemPublicSerializer
 
     def get_queryset(self):

@@ -3,6 +3,12 @@ from rest_framework import serializers
 from .models import Album, MediaItem
 
 
+def resolve_translated(obj, field_name, lang):
+    value = getattr(obj, f"{field_name}_{lang}", "")
+    fallback = getattr(obj, f"{field_name}_en", "")
+    return value or fallback
+
+
 def _resolve_local_url(file_field, request):
     if not file_field or not getattr(file_field, 'name', ''):
         return ''
@@ -26,6 +32,7 @@ def _get_thumbnail_url(obj, request):
 
 class MediaCoverSerializer(serializers.ModelSerializer):
     thumbnail_url = serializers.SerializerMethodField()
+    alt_text = serializers.SerializerMethodField()
 
     class Meta:
         model = MediaItem
@@ -35,17 +42,35 @@ class MediaCoverSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         return _get_thumbnail_url(obj, request)
 
+    def get_alt_text(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'alt_text', lang)
+
 
 class AlbumListSerializer(serializers.ModelSerializer):
     cover = MediaCoverSerializer(source='cover_media', read_only=True)
+    title = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
 
     class Meta:
         model = Album
         fields = ['id', 'slug', 'title', 'description', 'display_order', 'cover']
 
+    def get_title(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'title', lang)
+
+    def get_description(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'description', lang)
+
 
 class AlbumDetailSerializer(serializers.ModelSerializer):
     cover = MediaCoverSerializer(source='cover_media', read_only=True)
+    title = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    seo_title = serializers.SerializerMethodField()
+    seo_description = serializers.SerializerMethodField()
 
     class Meta:
         model = Album
@@ -61,11 +86,31 @@ class AlbumDetailSerializer(serializers.ModelSerializer):
             'created_at',
         ]
 
+    def get_title(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'title', lang)
+
+    def get_description(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'description', lang)
+
+    def get_seo_title(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'seo_title', lang)
+
+    def get_seo_description(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'seo_description', lang)
+
 
 class MediaItemPublicSerializer(serializers.ModelSerializer):
     album_slug = serializers.SlugRelatedField(source='album', slug_field='slug', read_only=True)
     public_url = serializers.SerializerMethodField()
     thumbnail_url = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    alt_text = serializers.SerializerMethodField()
+    caption = serializers.SerializerMethodField()
 
     class Meta:
         model = MediaItem
@@ -92,3 +137,19 @@ class MediaItemPublicSerializer(serializers.ModelSerializer):
     def get_thumbnail_url(self, obj):
         request = self.context.get('request')
         return _get_thumbnail_url(obj, request)
+
+    def get_title(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'title', lang)
+
+    def get_description(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'description', lang)
+
+    def get_alt_text(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'alt_text', lang)
+
+    def get_caption(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'caption', lang)

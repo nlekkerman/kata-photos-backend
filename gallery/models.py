@@ -16,14 +16,22 @@ class Album(models.Model):
     )
     seo_title = models.CharField(max_length=200, blank=True)
     seo_description = models.TextField(blank=True)
+    title_en = models.CharField(max_length=200, blank=True)
+    title_bs = models.CharField(max_length=200, blank=True)
+    description_en = models.TextField(blank=True)
+    description_bs = models.TextField(blank=True)
+    seo_title_en = models.CharField(max_length=200, blank=True)
+    seo_title_bs = models.CharField(max_length=200, blank=True)
+    seo_description_en = models.TextField(blank=True)
+    seo_description_bs = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['display_order', 'title']
+        ordering = ['display_order', 'title_en', 'title']
 
     def __str__(self):
-        return self.title
+        return self.title_en or self.title or f'Album {self.pk}'
 
 
 class MediaItem(models.Model):
@@ -46,6 +54,14 @@ class MediaItem(models.Model):
     tags = models.JSONField(default=list, blank=True)
     is_published = models.BooleanField(default=False)
     display_order = models.PositiveIntegerField(default=0)
+    title_en = models.CharField(max_length=200, blank=True)
+    title_bs = models.CharField(max_length=200, blank=True)
+    description_en = models.TextField(blank=True)
+    description_bs = models.TextField(blank=True)
+    alt_text_en = models.CharField(max_length=500, blank=True)
+    alt_text_bs = models.CharField(max_length=500, blank=True)
+    caption_en = models.CharField(max_length=500, blank=True)
+    caption_bs = models.CharField(max_length=500, blank=True)
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='local')
     provider_public_id = models.CharField(max_length=500, blank=True)
     original_file = models.FileField(upload_to='gallery/originals/', null=True, blank=True)
@@ -62,5 +78,5 @@ class MediaItem(models.Model):
         ordering = ['display_order', 'id']
 
     def __str__(self):
-        return self.title or f'MediaItem {self.pk}'
+        return self.title_en or self.title or f'MediaItem {self.pk}'
 

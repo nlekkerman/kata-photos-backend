@@ -1,6 +1,6 @@
 # Gallery and Media Architecture Plan
 
-## Current Repository State
+## Initial Repository State
 
 - **Django 6.0.5**, **DRF 3.17.1**, **python-dotenv 1.2.2** — no other packages installed
 - `gallery/models.py`, `gallery/views.py`, `gallery/admin.py` are blank boilerplate
@@ -102,7 +102,7 @@
 | `display_order` | `PositiveIntegerField(default=0)` | Manual ordering within album |
 | `provider` | `CharField(choices=[('local','Local'),('cloudinary','Cloudinary'),('cloudflare_stream','Cloudflare Stream')], default='local', max_length=20)` | Canonical provider; enables URL computation logic and bulk re-compute |
 | `provider_public_id` | `CharField(max_length=500, blank=True)` | Cloud asset ID: Cloudinary `public_id`, Cloudflare Stream `uid`; empty for local |
-| `original_file` | `FileField(upload_to='media/originals/', null=True, blank=True)` | Local dev storage; **`FileField` not `ImageField`** — Pillow is not installed |
+| `original_file` | `FileField(upload_to='gallery/originals/', null=True, blank=True)` | Local dev storage; **`FileField` not `ImageField`** — Pillow is not installed |
 | `public_url` | `URLField(max_length=1000, blank=True)` | Stored for cloud providers; empty for local (computed in serializer) |
 | `thumbnail_url` | `URLField(max_length=1000, blank=True)` | Stored for cloud providers; empty for local (computed in serializer) |
 | `width` | `PositiveIntegerField(null=True, blank=True)` | Width in px; must be set manually for local (no Pillow auto-extraction) |
@@ -260,8 +260,8 @@ DELETE /api/admin/gallery/media/<int:id>/
   "display_order": 0,
   "provider": "local",
   "provider_public_id": "",
-  "public_url": "http://localhost:8000/media/originals/fox.jpg",
-  "thumbnail_url": "http://localhost:8000/media/originals/fox.jpg",
+  "public_url": "http://localhost:8000/media/gallery/originals/fox.jpg",
+  "thumbnail_url": "http://localhost:8000/media/gallery/originals/fox.jpg",
   "width": 1600,
   "height": 1000,
   "file_size": 245000,
