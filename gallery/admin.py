@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Album, MediaItem
+from .models import Album, FieldNote, MediaItem
 
 
 @admin.register(Album)
@@ -55,6 +55,34 @@ class MediaItemAdmin(admin.ModelAdmin):
         }),
         ('Metadata', {
             'fields': ('width', 'height', 'duration_seconds', 'file_size'),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+
+@admin.register(FieldNote)
+class FieldNoteAdmin(admin.ModelAdmin):
+    list_display = ('title_en', 'slug', 'is_published', 'published_at', 'created_at')
+    list_filter = ('is_published',)
+    search_fields = ('title_en', 'slug', 'location')
+    ordering = ('-published_at', '-created_at')
+    readonly_fields = ('created_at', 'updated_at')
+    prepopulated_fields = {'slug': ('title_en',)}
+    fieldsets = (
+        ('Publishing', {
+            'fields': ('slug', 'is_published', 'published_at', 'cover_image'),
+        }),
+        ('English Content', {
+            'fields': ('title_en', 'excerpt_en', 'body_en'),
+        }),
+        ('Bosnian Content', {
+            'fields': ('title_bs', 'excerpt_bs', 'body_bs'),
+        }),
+        ('Location', {
+            'fields': ('location',),
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

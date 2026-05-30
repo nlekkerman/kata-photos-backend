@@ -1,9 +1,11 @@
 from rest_framework import generics
 
-from .models import Album, MediaItem
+from .models import Album, FieldNote, MediaItem
 from .serializers import (
     AlbumDetailSerializer,
     AlbumListSerializer,
+    FieldNoteDetailSerializer,
+    FieldNoteListSerializer,
     MediaItemPublicSerializer,
 )
 
@@ -50,4 +52,19 @@ class MediaItemDetailView(LangContextMixin, generics.RetrieveAPIView):
         return MediaItem.objects.filter(
             is_published=True, album__is_published=True
         )
+
+
+class FieldNoteListView(LangContextMixin, generics.ListAPIView):
+    serializer_class = FieldNoteListSerializer
+
+    def get_queryset(self):
+        return FieldNote.objects.filter(is_published=True)
+
+
+class FieldNoteDetailView(LangContextMixin, generics.RetrieveAPIView):
+    serializer_class = FieldNoteDetailSerializer
+    lookup_field = 'slug'
+
+    def get_queryset(self):
+        return FieldNote.objects.filter(is_published=True)
 

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Album, MediaItem
+from .models import Album, FieldNote, MediaItem
 
 
 def resolve_translated(obj, field_name, lang):
@@ -153,3 +153,61 @@ class MediaItemPublicSerializer(serializers.ModelSerializer):
     def get_caption(self, obj):
         lang = self.context.get('lang', 'en')
         return resolve_translated(obj, 'caption', lang)
+
+
+class FieldNoteCoverSerializer(serializers.ModelSerializer):
+    thumbnail_url = serializers.SerializerMethodField()
+    alt_text = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MediaItem
+        fields = ['id', 'thumbnail_url', 'alt_text']
+
+    def get_thumbnail_url(self, obj):
+        request = self.context.get('request')
+        return _get_thumbnail_url(obj, request)
+
+    def get_alt_text(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'alt_text', lang)
+
+
+class FieldNoteListSerializer(serializers.ModelSerializer):
+    title = serializers.SerializerMethodField()
+    excerpt = serializers.SerializerMethodField()
+    cover_image = FieldNoteCoverSerializer(read_only=True)
+
+    class Meta:
+        model = FieldNote
+        fields = ['id', 'slug', 'title', 'excerpt', 'location', 'published_at', 'cover_image']
+
+    def get_title(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'title', lang)
+
+    def get_excerpt(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'excerpt', lang)
+
+
+class FieldNoteDetailSerializer(serializers.ModelSerializer):
+    title = serializers.SerializerMethodField()
+    excerpt = serializers.SerializerMethodField()
+    body = serializers.SerializerMethodField()
+    cover_image = FieldNoteCoverSerializer(read_only=True)
+
+    class Meta:
+        model = FieldNote
+        fields = ['id', 'slug', 'title', 'excerpt', 'body', 'location', 'published_at', 'cover_image']
+
+    def get_title(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'title', lang)
+
+    def get_excerpt(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'excerpt', lang)
+
+    def get_body(self, obj):
+        lang = self.context.get('lang', 'en')
+        return resolve_translated(obj, 'body', lang)

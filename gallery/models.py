@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -79,4 +80,49 @@ class MediaItem(models.Model):
 
     def __str__(self):
         return self.title_en or self.title or f'MediaItem {self.pk}'
+
+
+class FieldNote(models.Model):
+    slug = models.SlugField(max_length=200, unique=True)
+
+    title_en = models.CharField(max_length=200)
+    title_bs = models.CharField(max_length=200, blank=True)
+
+    excerpt_en = models.TextField(blank=True)
+    excerpt_bs = models.TextField(blank=True)
+
+    body_en = models.TextField()
+    body_bs = models.TextField(blank=True)
+
+    location = models.CharField(max_length=200, blank=True)
+
+    is_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    cover_image = models.ForeignKey(
+        'MediaItem',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='cover_for_field_notes',
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-published_at', '-created_at']
+
+    def clean(self):
+        if self.is_published:
+            errors = {}
+            if not self.title_en:
+                errors['title_en'] = 'Title (English) is required before publishing.'
+            if not self.body_en:
+                errors['body_en'] = 'Body (English) is required before publishing.'
+            if errors:
+                raise ValidationError(errors)
+
+    def __str__(self):
+        return self.title_en or f'FieldNote {self.pk}'
 
