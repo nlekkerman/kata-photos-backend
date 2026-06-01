@@ -261,3 +261,93 @@ class AlbumCoverAPITests(TestCase):
         self.assertEqual(album_data['cover']['id'], self.media.pk)
 
 
+@override_settings(MEDIA_ROOT=_TEMP_MEDIA)
+class UploadSafetyTests(TestCase):
+    """Phase 6: backend upload safety hardening."""
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(_TEMP_MEDIA, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(username='safestaff', password='pass', is_staff=True)
+        self.album = Album.objects.create(slug='safe-album', title_bs='Safe Album', is_published=True)
+        self.url = f'/api/gallery/albums/{self.album.slug}/media/'
+        self.client.force_authenticate(user=self.staff)
+
+    def _make_image_file(self, name='img.jpg', fmt='JPEG', content_type='image/jpeg'):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        buf = io.BytesIO()
+        Image.new('RGB', (10, 10), color=(200, 100, 50)).save(buf, format=fmt)
+        buf.seek(0)
+        return SimpleUploadedFile(name, buf.read(), content_type=content_type)
+
+    def test_valid_jpeg_upload_accepted(self):
+        f = self._make_image_file(name='img.jpg', fmt='JPEG', content_type='image/jpeg')
+        resp = self.client.post(self.url, {'original_file': f}, format='multipart')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+
+    def test_valid_png_upload_accepted(self):
+        f = self._make_image_file(name='img.png', fmt='PNG', content_type='image/png')
+        resp = self.client.post(self.url, {'original_file': f}, format='multipart')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+
+    def test_valid_webp_upload_accepted(self):
+        try:
+            f = self._make_image_file(name='img.webp', fmt='WEBP', content_type='image/webp')
+        except (KeyError, IOError, OSError):
+            self.skipTest('WEBP not supported by local Pillow build')
+        resp = self.client.post(self.url, {'original_file': f}, format='multipart')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+
+    def test_oversized_upload_rejected(self):
+        from gallery.serializers import MAX_IMAGE_UPLOAD_SIZE_MB
+        # Build a valid JPEG and pad it with null bytes to exceed the size limit.
+        # Pillow ignores trailing bytes after the JPEG EOI marker, so the file
+        # passes DRF ImageField validation but fails our size check.
+        buf = io.BytesIO()
+        Image.new('RGB', (10, 10)).save(buf, format='JPEG')
+        jpeg_bytes = buf.getvalue()
+        target_size = (MAX_IMAGE_UPLOAD_SIZE_MB + 1) * 1024 * 1024
+        large_content = jpeg_bytes + b'\x00' * (target_size - len(jpeg_bytes))
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        f = SimpleUploadedFile('big.jpg', large_content, content_type='image/jpeg')
+        resp = self.client.post(self.url, {'original_file': f}, format='multipart')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('original_file', resp.data)
+
+    def test_unsupported_content_type_rejected(self):
+        # GIF is a real image Pillow accepts, but is not in our allowed set.
+        # Django's ImageField normalises content_type to the Pillow-detected
+        # MIME type, so only an actual GIF (not a JPEG mislabelled as GIF)
+        # will arrive in validate_original_file with content_type='image/gif'.
+        buf = io.BytesIO()
+        Image.new('P', (10, 10)).save(buf, format='GIF')
+        buf.seek(0)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        f = SimpleUploadedFile('img.gif', buf.read(), content_type='image/gif')
+        resp = self.client.post(self.url, {'original_file': f}, format='multipart')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('original_file', resp.data)
+
+    def test_missing_content_type_rejected(self):
+        # application/octet-stream simulates a browser sending no recognized MIME type
+        f = self._make_image_file(name='img.bin', fmt='JPEG', content_type='application/octet-stream')
+        resp = self.client.post(self.url, {'original_file': f}, format='multipart')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('original_file', resp.data)
+
+    def test_published_without_alt_text_bs_rejected(self):
+        f = self._make_image_file()
+        resp = self.client.post(self.url, {'original_file': f, 'is_published': True}, format='multipart')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('alt_text_bs', resp.data)
+
+    def test_public_media_list_still_works(self):
+        MediaItem.objects.create(album=self.album, is_published=True, title_bs='Visible')
+        MediaItem.objects.create(album=self.album, is_published=False, title_bs='Hidden')
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 1)

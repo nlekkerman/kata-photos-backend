@@ -2,6 +2,16 @@ from rest_framework import serializers
 
 from .models import Album, FieldNote, MediaItem
 
+# ---------------------------------------------------------------------------
+# Upload safety constants (Phase 6)
+# ---------------------------------------------------------------------------
+MAX_IMAGE_UPLOAD_SIZE_MB = 10
+ALLOWED_IMAGE_CONTENT_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
+
 
 def resolve_translated(obj, field_name, lang):
     value = getattr(obj, f"{field_name}_{lang}", "")
@@ -88,6 +98,21 @@ class AlbumWriteSerializer(serializers.ModelSerializer):
 class MediaItemWriteSerializer(serializers.ModelSerializer):
     original_file = serializers.ImageField(required=False)
 
+    def validate_original_file(self, file):
+        """Reject files that are too large or have an unsupported content type."""
+        max_bytes = MAX_IMAGE_UPLOAD_SIZE_MB * 1024 * 1024
+        if file.size > max_bytes:
+            raise serializers.ValidationError(
+                f"Image file too large. Maximum allowed size is {MAX_IMAGE_UPLOAD_SIZE_MB} MB."
+            )
+        content_type = getattr(file, "content_type", None)
+        if not content_type or content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+            allowed = ", ".join(sorted(ALLOWED_IMAGE_CONTENT_TYPES))
+            raise serializers.ValidationError(
+                f"Unsupported file type '{content_type}'. Allowed types: {allowed}."
+            )
+        return file
+
     class Meta:
         model = MediaItem
         fields = [
@@ -119,6 +144,10 @@ class MediaItemWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {'original_file': 'An image file is required.'}
             )
+
+        # NOTE: Replacing original_file on PATCH leaves the previous file on disk.
+        # Orphaned file cleanup should be handled in a future cleanup phase
+        # (e.g., a pre_save signal or a periodic management command).
 
         # If is_published=True, alt_text_bs must be provided
         is_published = data.get('is_published', getattr(self.instance, 'is_published', False))
