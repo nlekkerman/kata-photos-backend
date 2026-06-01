@@ -49,6 +49,7 @@ class MediaItem(models.Model):
     PROVIDER_CHOICES = [
         ('local', 'Local'),
         ('cloudinary', 'Cloudinary'),
+        ('cloudflare_images', 'Cloudflare Images'),
         ('cloudflare_stream', 'Cloudflare Stream'),
     ]
 
@@ -166,4 +167,44 @@ class FieldNote(models.Model):
 
     def __str__(self):
         return self.title_en or f'FieldNote {self.pk}'
+
+
+class VideoClip(models.Model):
+    STATUS_UPLOADING = 'uploading'
+    STATUS_PROCESSING = 'processing'
+    STATUS_READY = 'ready'
+    STATUS_FAILED = 'failed'
+
+    STATUS_CHOICES = [
+        (STATUS_UPLOADING, 'Uploading'),
+        (STATUS_PROCESSING, 'Processing'),
+        (STATUS_READY, 'Ready'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    album = models.ForeignKey(
+        'gallery.Album',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='videos',
+    )
+    title_bs = models.CharField(max_length=255)
+    title_en = models.CharField(max_length=255, blank=True)
+    description_bs = models.TextField(blank=True)
+    description_en = models.TextField(blank=True)
+    cloudflare_uid = models.CharField(max_length=128, unique=True)
+    cloudflare_thumbnail_url = models.URLField(blank=True)
+    cloudflare_playback_url = models.URLField(blank=True)
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_UPLOADING)
+    is_public = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title_bs or self.title_en or f'VideoClip {self.pk}'
 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Album, FieldNote, MediaItem
+from .models import Album, FieldNote, MediaItem, VideoClip
 
 
 @admin.register(Album)
@@ -91,3 +91,29 @@ class FieldNoteAdmin(admin.ModelAdmin):
         }),
     )
 
+
+@admin.register(VideoClip)
+class VideoClipAdmin(admin.ModelAdmin):
+    list_display = ('title_bs', 'album', 'cloudflare_uid', 'status', 'is_public', 'created_at')
+    list_filter = ('status', 'is_public')
+    search_fields = ('title_bs', 'title_en', 'cloudflare_uid')
+    ordering = ('-created_at',)
+    readonly_fields = ('cloudflare_uid', 'created_at', 'updated_at')
+    fieldsets = (
+        ('Album / Publishing', {
+            'fields': ('album', 'status', 'is_public'),
+        }),
+        ('Bosnian Content', {
+            'fields': ('title_bs', 'description_bs'),
+        }),
+        ('English Content', {
+            'fields': ('title_en', 'description_en'),
+        }),
+        ('Cloudflare Stream', {
+            'fields': ('cloudflare_uid', 'cloudflare_thumbnail_url', 'cloudflare_playback_url', 'duration_seconds'),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )

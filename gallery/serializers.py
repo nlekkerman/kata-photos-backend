@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Album, FieldNote, MediaItem
+from .models import Album, FieldNote, MediaItem, VideoClip
 
 # ---------------------------------------------------------------------------
 # Upload safety constants (Phase 6)
@@ -118,6 +118,10 @@ class MediaItemWriteSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'original_file',
+            'provider',
+            'public_url',
+            'thumbnail_url',
+            'provider_public_id',
             'media_type',
             'title_bs',
             'caption_bs',
@@ -136,7 +140,10 @@ class MediaItemWriteSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'width', 'height', 'file_size', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'provider', 'public_url', 'thumbnail_url', 'provider_public_id',
+            'width', 'height', 'file_size', 'created_at', 'updated_at',
+        ]
 
     def validate(self, data):
         # original_file is required when creating a new media item
@@ -381,3 +388,54 @@ class FieldNoteDetailSerializer(serializers.ModelSerializer):
     def get_body(self, obj):
         lang = self.context.get('lang', 'en')
         return resolve_translated(obj, 'body', lang)
+
+
+# ---------------------------------------------------------------------------
+# VideoClip serializers
+# ---------------------------------------------------------------------------
+
+class VideoClipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VideoClip
+        fields = [
+            'id',
+            'album',
+            'title_bs',
+            'title_en',
+            'description_bs',
+            'description_en',
+            'cloudflare_uid',
+            'cloudflare_thumbnail_url',
+            'cloudflare_playback_url',
+            'duration_seconds',
+            'status',
+            'is_public',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'cloudflare_uid',
+            'cloudflare_thumbnail_url',
+            'cloudflare_playback_url',
+            'status',
+            'created_at',
+            'updated_at',
+        ]
+
+
+class VideoClipDirectUploadRequestSerializer(serializers.Serializer):
+    album = serializers.PrimaryKeyRelatedField(
+        queryset=Album.objects.all(), required=False, allow_null=True, default=None
+    )
+    title_bs = serializers.CharField(max_length=255)
+    title_en = serializers.CharField(max_length=255, allow_blank=True, default="")
+    description_bs = serializers.CharField(allow_blank=True, default="")
+    description_en = serializers.CharField(allow_blank=True, default="")
+    max_duration_seconds = serializers.IntegerField(required=False, default=300)
+
+    def validate_max_duration_seconds(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("max_duration_seconds must be a positive integer.")
+        return value
+

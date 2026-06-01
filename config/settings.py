@@ -161,3 +161,17 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Cloudflare Images — set both in .env to enable cloud uploads.
+# Leave empty to fall back to local storage.
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
+CLOUDFLARE_IMAGES_API_TOKEN = os.getenv("CLOUDFLARE_IMAGES_API_TOKEN", "")
+
+# Cloudflare Stream — set to enable video direct-upload.
+# CLOUDFLARE_ACCOUNT_ID is shared with Images above.
+# Leave empty; a clear error is raised when Stream upload is attempted without config.
+CLOUDFLARE_STREAM_API_TOKEN = os.getenv("CLOUDFLARE_STREAM_API_TOKEN", "")
+CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN = os.getenv("CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN", "")
+CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS = int(
+    os.getenv("CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS", "3600")
+)

@@ -8,6 +8,7 @@ from .views import (
     FieldNoteDetailView,
     FieldNoteListView,
     MediaItemRetrieveUpdateDestroyView,
+    VideoClipDirectUploadView,
 )
 
 urlpatterns = [
@@ -18,4 +19,5 @@ urlpatterns = [
     path('media/<int:pk>/', MediaItemRetrieveUpdateDestroyView.as_view(), name='mediaitem-detail'),
     path('field-notes/', FieldNoteListView.as_view(), name='fieldnote-list'),
     path('field-notes/<slug:slug>/', FieldNoteDetailView.as_view(), name='fieldnote-detail'),
+    path('videos/direct-upload/', VideoClipDirectUploadView.as_view(), name='videoclip-direct-upload'),
 ]
