@@ -5,15 +5,15 @@ from .models import Album, FieldNote, MediaItem, VideoClip
 
 @admin.register(Album)
 class AlbumAdmin(admin.ModelAdmin):
-    list_display = ('title_bs', 'slug', 'is_published', 'display_order', 'created_at')
-    list_filter = ('is_published',)
+    list_display = ('title_bs', 'slug', 'gallery_type', 'is_published', 'display_order', 'created_at')
+    list_filter = ('is_published', 'gallery_type')
     search_fields = ('title_bs', 'title_en', 'slug')
-    ordering = ('display_order', 'title_bs')
+    ordering = ('gallery_type', 'display_order', 'title_bs')
     readonly_fields = ('created_at', 'updated_at')
     prepopulated_fields = {'slug': ('title_bs',)}
     fieldsets = (
         ('Publishing / Ordering', {
-            'fields': ('slug', 'is_published', 'display_order', 'cover_media'),
+            'fields': ('slug', 'gallery_type', 'is_published', 'display_order', 'cover_media'),
         }),
         ('Bosnian Content', {
             'fields': ('title_bs', 'description_bs'),

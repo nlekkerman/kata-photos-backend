@@ -5,8 +5,20 @@ from django.db import models
 
 
 class Album(models.Model):
+    GALLERY_TYPE_IMAGE = 'image'
+    GALLERY_TYPE_VIDEO = 'video'
+    GALLERY_TYPE_CHOICES = [
+        (GALLERY_TYPE_IMAGE, 'Image Gallery'),
+        (GALLERY_TYPE_VIDEO, 'Video Gallery'),
+    ]
+
     title = models.CharField(max_length=200, blank=True)
     slug = models.SlugField(unique=True)
+    gallery_type = models.CharField(
+        max_length=10,
+        choices=GALLERY_TYPE_CHOICES,
+        default=GALLERY_TYPE_IMAGE,
+    )
     description = models.TextField(blank=True)
     is_published = models.BooleanField(default=False)
     display_order = models.PositiveIntegerField(default=0)

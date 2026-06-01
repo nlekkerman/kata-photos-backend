@@ -1,6 +1,17 @@
 from django.urls import path
 
 from .views import (
+    AdminImageGalleryListCreateView,
+    AdminImageGalleryRetrieveUpdateDestroyView,
+    AdminImageItemListCreateView,
+    AdminImageItemRetrieveUpdateDestroyView,
+    AdminVideoCompleteUploadView,
+    AdminVideoDirectUploadView,
+    AdminVideoGalleryListCreateView,
+    AdminVideoGalleryRetrieveUpdateDestroyView,
+    AdminVideoItemListView,
+    AdminVideoItemRetrieveUpdateDestroyView,
+    AdminVideoRefreshStatusView,
     AlbumCoverUpdateView,
     AlbumListCreateView,
     AlbumMediaListCreateView,
@@ -15,6 +26,9 @@ from .views import (
 )
 
 urlpatterns = [
+    # ------------------------------------------------------------------
+    # Public / legacy endpoints (unchanged)
+    # ------------------------------------------------------------------
     path('albums/', AlbumListCreateView.as_view(), name='album-list'),
     path('albums/<slug:slug>/', AlbumRetrieveUpdateDestroyView.as_view(), name='album-detail'),
     path('albums/<slug:slug>/cover/', AlbumCoverUpdateView.as_view(), name='album-cover'),
@@ -26,4 +40,33 @@ urlpatterns = [
     path('videos/direct-upload/', VideoClipDirectUploadView.as_view(), name='videoclip-direct-upload'),
     path('videos/<int:pk>/', VideoClipDetailView.as_view(), name='videoclip-detail'),
     path('videos/<int:pk>/sync/', VideoClipSyncView.as_view(), name='videoclip-sync'),
+
+    # ------------------------------------------------------------------
+    # Admin-only endpoints — image galleries
+    # ------------------------------------------------------------------
+    path('admin/image-galleries/', AdminImageGalleryListCreateView.as_view(), name='admin-image-gallery-list'),
+    path('admin/image-galleries/<int:pk>/', AdminImageGalleryRetrieveUpdateDestroyView.as_view(), name='admin-image-gallery-detail'),
+
+    # ------------------------------------------------------------------
+    # Admin-only endpoints — image items
+    # ------------------------------------------------------------------
+    path('admin/images/', AdminImageItemListCreateView.as_view(), name='admin-image-list'),
+    path('admin/images/<int:pk>/', AdminImageItemRetrieveUpdateDestroyView.as_view(), name='admin-image-detail'),
+
+    # ------------------------------------------------------------------
+    # Admin-only endpoints — video galleries
+    # ------------------------------------------------------------------
+    path('admin/video-galleries/', AdminVideoGalleryListCreateView.as_view(), name='admin-video-gallery-list'),
+    path('admin/video-galleries/<int:pk>/', AdminVideoGalleryRetrieveUpdateDestroyView.as_view(), name='admin-video-gallery-detail'),
+
+    # ------------------------------------------------------------------
+    # Admin-only endpoints — video items
+    # NOTE: fixed-path segments (direct-upload, complete-upload) must
+    # come before the <int:pk> pattern to avoid routing ambiguity.
+    # ------------------------------------------------------------------
+    path('admin/videos/', AdminVideoItemListView.as_view(), name='admin-video-list'),
+    path('admin/videos/direct-upload/', AdminVideoDirectUploadView.as_view(), name='admin-video-direct-upload'),
+    path('admin/videos/complete-upload/', AdminVideoCompleteUploadView.as_view(), name='admin-video-complete-upload'),
+    path('admin/videos/<int:pk>/', AdminVideoItemRetrieveUpdateDestroyView.as_view(), name='admin-video-detail'),
+    path('admin/videos/<int:pk>/refresh-status/', AdminVideoRefreshStatusView.as_view(), name='admin-video-refresh-status'),
 ]
