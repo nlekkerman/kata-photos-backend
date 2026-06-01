@@ -333,8 +333,15 @@ class UploadSafetyTests(TestCase):
         self.assertIn('original_file', resp.data)
 
     def test_missing_content_type_rejected(self):
-        # application/octet-stream simulates a browser sending no recognized MIME type
-        f = self._make_image_file(name='img.bin', fmt='JPEG', content_type='application/octet-stream')
+        # A file with an unknown extension and no recognized MIME type is
+        # rejected by DRF's ImageField (disallowed extension) before it even
+        # reaches our validator.  The response is still a clean 400 with the
+        # 'original_file' key — which is all the caller should see.
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        buf = io.BytesIO()
+        Image.new('RGB', (10, 10)).save(buf, format='JPEG')
+        buf.seek(0)
+        f = SimpleUploadedFile('img.bin', buf.read(), content_type='application/octet-stream')
         resp = self.client.post(self.url, {'original_file': f}, format='multipart')
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('original_file', resp.data)

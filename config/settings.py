@@ -35,10 +35,13 @@ ALLOWED_HOSTS = [
 ]
 
 # CSRF trusted origins — required when frontend runs on a different origin or HTTPS.
-# Leave empty in development; populate in production via env.
+# Defaults to local Vite dev server; override via env in production.
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
-    for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+    for origin in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
     if origin.strip()
 ]
 
@@ -52,6 +55,10 @@ CORS_ALLOWED_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+
+# Allow the browser to send session cookies on cross-origin requests
+# (required for session-based auth from the Vite frontend).
+CORS_ALLOW_CREDENTIALS = True
 
 
 # Application definition
