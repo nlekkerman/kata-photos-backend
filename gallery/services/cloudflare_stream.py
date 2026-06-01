@@ -163,7 +163,8 @@ def create_direct_upload(
     ------
     CloudflareStreamError on any failure (config, network, HTTP, API)
     """
-    _check_configured(account_id, api_token) = datetime.now(tz=timezone.utc) + timedelta(seconds=expiry_seconds)
+    _check_configured(account_id, api_token)
+    expiry_dt = datetime.now(tz=timezone.utc) + timedelta(seconds=expiry_seconds)
     expiry_iso = expiry_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     body: dict = {
