@@ -5,26 +5,27 @@ from .models import Album, FieldNote, MediaItem
 
 @admin.register(Album)
 class AlbumAdmin(admin.ModelAdmin):
-    list_display = ('title_en', 'slug', 'is_published', 'display_order', 'created_at')
+    list_display = ('title_bs', 'slug', 'is_published', 'display_order', 'created_at')
     list_filter = ('is_published',)
-    search_fields = ('title_en', 'slug')
-    ordering = ('display_order', 'title_en')
+    search_fields = ('title_bs', 'title_en', 'slug')
+    ordering = ('display_order', 'title_bs')
     readonly_fields = ('created_at', 'updated_at')
+    prepopulated_fields = {'slug': ('title_bs',)}
     fieldsets = (
         ('Publishing / Ordering', {
             'fields': ('slug', 'is_published', 'display_order', 'cover_media'),
         }),
-        ('English Content', {
-            'fields': ('title_en', 'description_en'),
-        }),
         ('Bosnian Content', {
             'fields': ('title_bs', 'description_bs'),
         }),
-        ('SEO English', {
-            'fields': ('seo_title_en', 'seo_description_en'),
+        ('English Content', {
+            'fields': ('title_en', 'description_en'),
         }),
         ('SEO Bosnian', {
             'fields': ('seo_title_bs', 'seo_description_bs'),
+        }),
+        ('SEO English', {
+            'fields': ('seo_title_en', 'seo_description_en'),
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

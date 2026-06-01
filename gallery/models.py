@@ -1,9 +1,11 @@
+import os
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
 
 class Album(models.Model):
-    title = models.CharField(max_length=200)
+    title = models.CharField(max_length=200, blank=True)
     slug = models.SlugField(unique=True)
     description = models.TextField(blank=True)
     is_published = models.BooleanField(default=False)
@@ -32,7 +34,11 @@ class Album(models.Model):
         ordering = ['display_order', 'title_en', 'title']
 
     def __str__(self):
-        return self.title_en or self.title or f'Album {self.pk}'
+        return self.title_bs or self.title_en or self.title or f'Album {self.pk}'
+
+    def clean(self):
+        if self.is_published and not self.title_bs:
+            raise ValidationError({'title_bs': 'Naslov na bosanskom je obavezan za objavljene albume.'})
 
 
 class MediaItem(models.Model):
@@ -65,7 +71,7 @@ class MediaItem(models.Model):
     caption_bs = models.CharField(max_length=500, blank=True)
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='local')
     provider_public_id = models.CharField(max_length=500, blank=True)
-    original_file = models.FileField(upload_to='gallery/originals/', null=True, blank=True)
+    original_file = models.ImageField(upload_to='gallery/originals/', null=True, blank=True)
     public_url = models.URLField(max_length=1000, blank=True)
     thumbnail_url = models.URLField(max_length=1000, blank=True)
     width = models.PositiveIntegerField(null=True, blank=True)
@@ -79,7 +85,42 @@ class MediaItem(models.Model):
         ordering = ['display_order', 'id']
 
     def __str__(self):
-        return self.title_en or self.title or f'MediaItem {self.pk}'
+        return self.title_bs or self.title_en or self.title or f'MediaItem {self.pk}'
+
+    def save(self, *args, **kwargs):
+        if self.provider == 'local' and self.original_file:
+            self._populate_local_image_metadata()
+        super().save(*args, **kwargs)
+
+    def _populate_local_image_metadata(self):
+        """Populate width, height, file_size from original_file for local uploads."""
+        from PIL import Image, UnidentifiedImageError
+
+        f = self.original_file
+
+        if not f._committed:
+            # New upload — file not yet written to storage
+            raw = f.file
+            self.file_size = raw.size
+            raw.seek(0)
+            try:
+                with Image.open(raw) as img:
+                    self.width, self.height = img.size
+            except (UnidentifiedImageError, Exception):
+                pass
+            raw.seek(0)
+        else:
+            # Existing committed file on disk — only fill missing fields
+            if not (self.width and self.height and self.file_size):
+                try:
+                    path = f.path
+                    if not self.file_size:
+                        self.file_size = os.path.getsize(path)
+                    if not (self.width and self.height):
+                        with Image.open(path) as img:
+                            self.width, self.height = img.size
+                except (UnidentifiedImageError, Exception):
+                    pass
 
 
 class FieldNote(models.Model):
