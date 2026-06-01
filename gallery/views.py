@@ -261,3 +261,125 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
             status=status.HTTP_201_CREATED,
         )
 
+
+class VideoClipListView(generics.ListAPIView):
+    """Public/admin video list.
+
+    Public users see only ``is_public=True`` and ``status='ready'`` clips.
+    Staff/admin users see all clips.
+    Supports optional ``?album=<pk>`` filter.
+    """
+
+    serializer_class = VideoClipSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        qs = VideoClip.objects.select_related('album').all()
+        user = self.request.user
+        if not (user and user.is_authenticated and user.is_staff):
+            qs = qs.filter(is_public=True, status=VideoClip.STATUS_READY)
+        album_pk = self.request.query_params.get('album')
+        if album_pk:
+            qs = qs.filter(album_id=album_pk)
+        return qs
+
+
+class VideoClipDetailView(generics.RetrieveAPIView):
+    """Public/admin single video detail.
+
+    Public users can only retrieve ``is_public=True`` and ``status='ready'`` clips.
+    Staff/admin users can retrieve any clip.
+    """
+
+    serializer_class = VideoClipSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user and user.is_authenticated and user.is_staff:
+            return VideoClip.objects.select_related('album').all()
+        return VideoClip.objects.select_related('album').filter(
+            is_public=True, status=VideoClip.STATUS_READY
+        )
+
+
+class VideoClipSyncView(generics.GenericAPIView):
+    """Staff-only endpoint: sync a VideoClip with live Cloudflare Stream metadata.
+
+    Updates ``status``, ``duration_seconds``, ``cloudflare_playback_url``, and
+    ``cloudflare_thumbnail_url`` from the Cloudflare API response.
+    Returns the updated serialized ``VideoClip``.
+    """
+
+    permission_classes = [IsAdminUser]
+    http_method_names = ['post', 'head', 'options']
+
+    def post(self, request, pk):
+        video = generics.get_object_or_404(VideoClip, pk=pk)
+
+        account_id = settings.CLOUDFLARE_ACCOUNT_ID
+        api_token = settings.CLOUDFLARE_STREAM_API_TOKEN
+        customer_subdomain = settings.CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN
+
+        if not account_id or not api_token:
+            raise APIException(
+                detail="Cloudflare Stream is not configured on this server.",
+                code="stream_not_configured",
+            )
+
+        from .services.cloudflare_stream import (
+            CloudflareStreamError,
+            build_playback_url,
+            build_thumbnail_url,
+            get_video_details,
+            map_cloudflare_status,
+        )
+
+        try:
+            cf = get_video_details(
+                account_id=account_id,
+                api_token=api_token,
+                uid=video.cloudflare_uid,
+            )
+        except CloudflareStreamError as exc:
+            logger.error(
+                "Cloudflare Stream sync error for VideoClip pk=%s: %s",
+                video.pk,
+                exc,
+            )
+            raise CloudflareServiceError(detail=str(exc))
+
+        update_fields = []
+
+        new_status = map_cloudflare_status(cf)
+        if video.status != new_status:
+            video.status = new_status
+            update_fields.append('status')
+
+        raw_duration = cf.get('duration')
+        if raw_duration is not None and raw_duration >= 0:
+            new_duration = round(raw_duration)
+            if video.duration_seconds != new_duration:
+                video.duration_seconds = new_duration
+                update_fields.append('duration_seconds')
+
+        if customer_subdomain:
+            new_playback = build_playback_url(
+                customer_subdomain=customer_subdomain, uid=video.cloudflare_uid
+            )
+            if video.cloudflare_playback_url != new_playback:
+                video.cloudflare_playback_url = new_playback
+                update_fields.append('cloudflare_playback_url')
+
+            new_thumbnail = build_thumbnail_url(
+                customer_subdomain=customer_subdomain, uid=video.cloudflare_uid
+            )
+            if video.cloudflare_thumbnail_url != new_thumbnail:
+                video.cloudflare_thumbnail_url = new_thumbnail
+                update_fields.append('cloudflare_thumbnail_url')
+
+        if update_fields:
+            video.save(update_fields=update_fields)
+
+        return Response(VideoClipSerializer(video).data)
+

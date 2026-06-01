@@ -1,27 +1,21 @@
 """
-Cloudflare Stream direct-upload service.
-
-Requests a Direct Creator Upload URL from the Cloudflare Stream API and
-returns the resulting video UID and upload URL.
+Cloudflare Stream service: direct uploads, video details, and URL helpers.
 
 Usage:
-    from gallery.services.cloudflare_stream import create_direct_upload, CloudflareStreamUploadError
-
-    try:
-        result = create_direct_upload(
-            account_id="...",
-            api_token="...",
-            max_duration_seconds=300,
-            expiry_seconds=3600,
-        )
-        # result = {"uid": "...", "upload_url": "https://upload.videodelivery.net/..."}
-    except CloudflareStreamUploadError as exc:
-        # handle — token is never included in the message
-        ...
+    from gallery.services.cloudflare_stream import (
+        create_direct_upload,
+        get_video_details,
+        list_videos,
+        map_cloudflare_status,
+        build_playback_url,
+        build_thumbnail_url,
+        CloudflareStreamError,
+    )
 
 Environment (consumed via settings, not directly here):
-    CLOUDFLARE_ACCOUNT_ID                         — shared with Cloudflare Images
-    CLOUDFLARE_STREAM_API_TOKEN                   — Stream-specific write token
+    CLOUDFLARE_ACCOUNT_ID                          — shared with Cloudflare Images
+    CLOUDFLARE_STREAM_API_TOKEN                    — Stream-specific write token
+    CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN           — e.g. customer-abc123.cloudflarestream.com
     CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS
 """
 import json
@@ -32,9 +26,110 @@ from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
+_CF_API_BASE = "https://api.cloudflare.com/client/v4/accounts"
 
-class CloudflareStreamUploadError(Exception):
-    """Raised when the Cloudflare Stream API call fails for any reason."""
+
+class CloudflareStreamError(Exception):
+    """Raised when any Cloudflare Stream API call fails."""
+
+
+# Backward-compat alias used by existing code.
+CloudflareStreamUploadError = CloudflareStreamError
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _safe_get(api_url: str, api_token: str, timeout: int = 30) -> dict:
+    """GET a Cloudflare API endpoint and return the parsed JSON body.
+
+    Raises CloudflareStreamError on HTTP or network failure.
+    The API token is never included in raised exception messages.
+    """
+    req = urllib.request.Request(
+        api_url,
+        headers={"Authorization": f"Bearer {api_token}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode(errors="replace")
+        logger.error(
+            "Cloudflare Stream API HTTP error: status=%s url=%s response_body=%r",
+            exc.code,
+            api_url,
+            error_body[:1000],
+        )
+        raise CloudflareStreamError(
+            f"Cloudflare Stream API error (HTTP {exc.code})."
+        ) from exc
+    except OSError as exc:
+        logger.error("Cloudflare Stream network error: url=%s exc=%r", api_url, exc)
+        raise CloudflareStreamError(
+            "Network error while reaching Cloudflare Stream API."
+        ) from exc
+
+
+def _check_configured(account_id: str, api_token: str) -> None:
+    if not account_id or not api_token:
+        raise CloudflareStreamError(
+            "Cloudflare Stream is not configured. "
+            "Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Public URL helpers
+# ---------------------------------------------------------------------------
+
+def build_playback_url(*, customer_subdomain: str, uid: str) -> str:
+    """Return the Cloudflare Stream iframe embed URL for *uid*.
+
+    Format: ``https://{customer_subdomain}/{uid}/iframe``
+    """
+    return f"https://{customer_subdomain}/{uid}/iframe"
+
+
+def build_thumbnail_url(*, customer_subdomain: str, uid: str) -> str:
+    """Return the Cloudflare Stream default thumbnail URL for *uid*.
+
+    Format: ``https://{customer_subdomain}/{uid}/thumbnails/thumbnail.jpg``
+    This matches the pattern documented at
+    https://developers.cloudflare.com/stream/viewing-videos/displaying-thumbnails/
+    """
+    return f"https://{customer_subdomain}/{uid}/thumbnails/thumbnail.jpg"
+
+
+# ---------------------------------------------------------------------------
+# Status mapping
+# ---------------------------------------------------------------------------
+
+def map_cloudflare_status(cf_result: dict) -> str:
+    """Map a Cloudflare Stream video result dict to a local VideoClip status string.
+
+    Cloudflare ``status.state`` values (documented):
+        pendingupload — file not yet received
+        inprogress    — transcoding/processing
+        ready         — playable
+        error         — transcoding failed
+
+    ``readyToStream`` is also checked as a belt-and-suspenders guard.
+
+    Returns one of: ``"ready"``, ``"processing"``, ``"failed"``.
+    Never returns ``"uploading"`` — that state is set only at creation time.
+    """
+    if cf_result.get("readyToStream"):
+        return "ready"
+    state: str = (cf_result.get("status") or {}).get("state", "")
+    if state == "ready":
+        return "ready"
+    if state == "error":
+        return "failed"
+    # pendingupload, inprogress, or unknown/empty — treat as still processing
+    return "processing"
 
 
 def create_direct_upload(
@@ -66,15 +161,9 @@ def create_direct_upload(
 
     Raises
     ------
-    CloudflareStreamUploadError on any failure (config, network, HTTP, API)
+    CloudflareStreamError on any failure (config, network, HTTP, API)
     """
-    if not account_id or not api_token:
-        raise CloudflareStreamUploadError(
-            "Cloudflare Stream is not configured. "
-            "Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN."
-        )
-
-    expiry_dt = datetime.now(tz=timezone.utc) + timedelta(seconds=expiry_seconds)
+    _check_configured(account_id, api_token) = datetime.now(tz=timezone.utc) + timedelta(seconds=expiry_seconds)
     expiry_iso = expiry_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     body: dict = {
@@ -86,9 +175,7 @@ def create_direct_upload(
     if meta:
         body["meta"] = meta
 
-    api_url = (
-        f"https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/direct_upload"
-    )
+    api_url = f"{_CF_API_BASE}/{account_id}/stream/direct_upload"
 
     req = urllib.request.Request(
         api_url,
@@ -111,12 +198,12 @@ def create_direct_upload(
             api_url,
             error_body[:1000],
         )
-        raise CloudflareStreamUploadError(
+        raise CloudflareStreamError(
             f"Cloudflare Stream API error (HTTP {exc.code})."
         ) from exc
     except OSError as exc:
         logger.error("Cloudflare Stream network error: url=%s exc=%r", api_url, exc)
-        raise CloudflareStreamUploadError(
+        raise CloudflareStreamError(
             "Network error while reaching Cloudflare Stream API."
         ) from exc
 
@@ -128,7 +215,7 @@ def create_direct_upload(
             api_url,
             errors,
         )
-        raise CloudflareStreamUploadError(
+        raise CloudflareStreamError(
             f"Cloudflare Stream direct-upload request failed (error codes: {codes})."
         )
 
@@ -137,3 +224,70 @@ def create_direct_upload(
         "uid": result["uid"],
         "upload_url": result["uploadURL"],
     }
+
+
+# ---------------------------------------------------------------------------
+# Read API
+# ---------------------------------------------------------------------------
+
+def get_video_details(
+    *,
+    account_id: str,
+    api_token: str,
+    uid: str,
+) -> dict:
+    """Fetch details for a single video from Cloudflare Stream.
+
+    Returns the ``result`` dict from the Cloudflare API response, which
+    contains fields such as ``readyToStream``, ``status``, ``duration``,
+    ``thumbnail``, and ``meta``.
+
+    Raises
+    ------
+    CloudflareStreamError on any failure.
+    """
+    _check_configured(account_id, api_token)
+    api_url = f"{_CF_API_BASE}/{account_id}/stream/{uid}"
+    payload = _safe_get(api_url, api_token)
+
+    if not payload.get("success"):
+        errors = payload.get("errors", [])
+        codes = ", ".join(str(e.get("code", "")) for e in errors)
+        logger.error(
+            "Cloudflare Stream API non-success: url=%s errors=%r", api_url, errors
+        )
+        raise CloudflareStreamError(
+            f"Cloudflare Stream video-details request failed (error codes: {codes})."
+        )
+
+    return payload["result"]
+
+
+def list_videos(
+    *,
+    account_id: str,
+    api_token: str,
+) -> list[dict]:
+    """List all videos in the Cloudflare Stream account.
+
+    Returns a list of video result dicts (same shape as ``get_video_details``).
+
+    Raises
+    ------
+    CloudflareStreamError on any failure.
+    """
+    _check_configured(account_id, api_token)
+    api_url = f"{_CF_API_BASE}/{account_id}/stream"
+    payload = _safe_get(api_url, api_token)
+
+    if not payload.get("success"):
+        errors = payload.get("errors", [])
+        codes = ", ".join(str(e.get("code", "")) for e in errors)
+        logger.error(
+            "Cloudflare Stream API non-success: url=%s errors=%r", api_url, errors
+        )
+        raise CloudflareStreamError(
+            f"Cloudflare Stream list-videos request failed (error codes: {codes})."
+        )
+
+    return payload.get("result", [])
