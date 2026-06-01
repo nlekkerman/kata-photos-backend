@@ -25,9 +25,12 @@ Environment (consumed via settings, not directly here):
     CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS
 """
 import json
+import logging
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 
 class CloudflareStreamUploadError(Exception):
@@ -101,11 +104,18 @@ def create_direct_upload(
         with urllib.request.urlopen(req, timeout=30) as resp:
             payload = json.loads(resp.read())
     except urllib.error.HTTPError as exc:
-        exc.read()  # drain the socket
+        error_body = exc.read().decode(errors="replace")
+        logger.error(
+            "Cloudflare Stream API HTTP error: status=%s url=%s response_body=%r",
+            exc.code,
+            api_url,
+            error_body[:1000],
+        )
         raise CloudflareStreamUploadError(
             f"Cloudflare Stream API error (HTTP {exc.code})."
         ) from exc
     except OSError as exc:
+        logger.error("Cloudflare Stream network error: url=%s exc=%r", api_url, exc)
         raise CloudflareStreamUploadError(
             "Network error while reaching Cloudflare Stream API."
         ) from exc
@@ -113,6 +123,11 @@ def create_direct_upload(
     if not payload.get("success"):
         errors = payload.get("errors", [])
         codes = ", ".join(str(e.get("code", "")) for e in errors)
+        logger.error(
+            "Cloudflare Stream API non-success: url=%s errors=%r",
+            api_url,
+            errors,
+        )
         raise CloudflareStreamUploadError(
             f"Cloudflare Stream direct-upload request failed (error codes: {codes})."
         )

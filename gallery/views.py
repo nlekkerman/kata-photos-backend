@@ -1,4 +1,5 @@
 import io
+import logging
 
 from django.conf import settings
 from rest_framework import generics, status
@@ -12,6 +13,8 @@ class CloudflareServiceError(APIException):
     status_code = status.HTTP_502_BAD_GATEWAY
     default_detail = 'Image upload to Cloudflare Images failed.'
     default_code = 'cloudflare_upload_error'
+
+logger = logging.getLogger(__name__)
 
 from .models import Album, FieldNote, MediaItem, VideoClip
 from .serializers import (
@@ -233,6 +236,11 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
                 expiry_seconds=expiry_seconds,
             )
         except CloudflareStreamUploadError as exc:
+            logger.error(
+                "Cloudflare Stream upload error on %s: %s",
+                request.path,
+                exc,
+            )
             raise CloudflareServiceError(detail=str(exc))
 
         video = VideoClip.objects.create(
