@@ -113,11 +113,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 #
 # Locally (no DATABASE_URL set): falls back to SQLite.
 # On Heroku (DATABASE_URL set by Postgres add-on): uses PostgreSQL with SSL.
+_DATABASE_URL = os.getenv("DATABASE_URL", "")
 DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
-        ssl_require=not DEBUG,
+        ssl_require=bool(_DATABASE_URL),
     )
 }
 
