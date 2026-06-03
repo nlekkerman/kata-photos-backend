@@ -175,3 +175,6 @@ CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN = os.getenv("CLOUDFLARE_STREAM_CUSTOMER_SUB
 CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS = int(
     os.getenv("CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS", "3600")
 )
+# Optional: burned-in watermark profile UID applied to every new direct upload.
+# Leave empty to upload without a watermark.
+CLOUDFLARE_STREAM_WATERMARK_UID = os.getenv("CLOUDFLARE_STREAM_WATERMARK_UID", "")

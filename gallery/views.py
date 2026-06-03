@@ -179,6 +179,7 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
         account_id = settings.CLOUDFLARE_ACCOUNT_ID
         api_token = settings.CLOUDFLARE_STREAM_API_TOKEN
         expiry_seconds = settings.CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS
+        watermark_uid = getattr(settings, "CLOUDFLARE_STREAM_WATERMARK_UID", "")
 
         if not account_id or not api_token:
             raise APIException(
@@ -197,6 +198,7 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
                 api_token=api_token,
                 max_duration_seconds=data['max_duration_seconds'],
                 expiry_seconds=expiry_seconds,
+                watermark_uid=watermark_uid,
             )
         except CloudflareStreamUploadError as exc:
             logger.error(
@@ -602,6 +604,7 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
         account_id = settings.CLOUDFLARE_ACCOUNT_ID
         api_token = settings.CLOUDFLARE_STREAM_API_TOKEN
         expiry_seconds = settings.CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS
+        watermark_uid = getattr(settings, "CLOUDFLARE_STREAM_WATERMARK_UID", "")
 
         if not account_id or not api_token:
             raise APIException(
@@ -620,6 +623,7 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
                 api_token=api_token,
                 max_duration_seconds=data['max_duration_seconds'],
                 expiry_seconds=expiry_seconds,
+                watermark_uid=watermark_uid,
             )
         except CloudflareStreamUploadError as exc:
             logger.error(

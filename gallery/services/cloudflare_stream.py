@@ -140,6 +140,7 @@ def create_direct_upload(
     expiry_seconds: int,
     creator: str = "",
     meta: dict | None = None,
+    watermark_uid: str = "",
 ) -> dict:
     """
     Request a Direct Creator Upload URL from Cloudflare Stream.
@@ -152,6 +153,8 @@ def create_direct_upload(
     expiry_seconds:       seconds until the upload URL expires
     creator:              optional creator identifier stored in Cloudflare metadata
     meta:                 optional extra metadata dict forwarded to Cloudflare
+    watermark_uid:        optional Cloudflare Stream watermark profile UID;
+                          when non-empty the watermark is burned into the video
 
     Returns
     -------
@@ -175,6 +178,8 @@ def create_direct_upload(
         body["creator"] = creator
     if meta:
         body["meta"] = meta
+    if watermark_uid:
+        body["watermark"] = {"uid": watermark_uid}
 
     api_url = f"{_CF_API_BASE}/{account_id}/stream/direct_upload"
 

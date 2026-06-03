@@ -1,6 +1,7 @@
 import io
 import shutil
 import tempfile
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
@@ -8,7 +9,7 @@ from PIL import Image
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from .models import Album, MediaItem
+from .models import Album, MediaItem, VideoClip
 
 ALBUMS_URL = '/api/gallery/albums/'
 
@@ -358,3 +359,131 @@ class UploadSafetyTests(TestCase):
         resp = self.client.get(self.url)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(len(resp.data), 1)
+
+
+_VIDEO_DIRECT_UPLOAD_URL = '/api/gallery/videos/direct-upload/'
+
+_FAKE_CF_RESULT = {"uid": "abc123uid", "upload_url": "https://upload.videodelivery.net/tus/abc123"}
+_FAKE_WATERMARK_UID = "29b0fa37be907b876f3c5670cfaf8890"
+
+
+@override_settings(
+    CLOUDFLARE_ACCOUNT_ID="test_account",
+    CLOUDFLARE_STREAM_API_TOKEN="test_token",
+    CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN="customer-test.cloudflarestream.com",
+    CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS=3600,
+    CLOUDFLARE_STREAM_WATERMARK_UID=_FAKE_WATERMARK_UID,
+)
+class VideoClipDirectUploadWatermarkTests(TestCase):
+    """Phase watermark: verify watermark UID is forwarded to Cloudflare on every direct upload."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(username='wstaff', password='pass', is_staff=True)
+        self.user = User.objects.create_user(username='wuser', password='pass', is_staff=False)
+        self.album = Album.objects.create(slug='wm-album', title_bs='Watermark Album')
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_watermark_uid_forwarded_to_cloudflare(self, mock_upload):
+        """Watermark UID from settings is passed to create_direct_upload."""
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(
+            _VIDEO_DIRECT_UPLOAD_URL,
+            {'title_bs': 'Test Video', 'max_duration_seconds': 60},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        _, kwargs = mock_upload.call_args
+        self.assertEqual(kwargs['watermark_uid'], _FAKE_WATERMARK_UID)
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_direct_upload_creates_videoclip_record(self, mock_upload):
+        """A successful direct-upload request creates one VideoClip in uploading state."""
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(
+            _VIDEO_DIRECT_UPLOAD_URL,
+            {'title_bs': 'Test Video', 'max_duration_seconds': 60},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(VideoClip.objects.count(), 1)
+        clip = VideoClip.objects.get()
+        self.assertEqual(clip.cloudflare_uid, 'abc123uid')
+        self.assertEqual(clip.status, VideoClip.STATUS_UPLOADING)
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_response_includes_upload_url(self, mock_upload):
+        """Response contains upload_url for the client to push the video file."""
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(
+            _VIDEO_DIRECT_UPLOAD_URL,
+            {'title_bs': 'Test Video', 'max_duration_seconds': 60},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(resp.data['upload_url'], _FAKE_CF_RESULT['upload_url'])
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_anonymous_cannot_request_upload(self, mock_upload):
+        resp = self.client.post(
+            _VIDEO_DIRECT_UPLOAD_URL,
+            {'title_bs': 'Test Video', 'max_duration_seconds': 60},
+            format='json',
+        )
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        mock_upload.assert_not_called()
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_non_staff_cannot_request_upload(self, mock_upload):
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.post(
+            _VIDEO_DIRECT_UPLOAD_URL,
+            {'title_bs': 'Test Video', 'max_duration_seconds': 60},
+            format='json',
+        )
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        mock_upload.assert_not_called()
+
+    def test_cloudflare_rejection_surfaces_as_502(self):
+        """If Cloudflare rejects the watermark UID, the view returns HTTP 502."""
+        from gallery.services.cloudflare_stream import CloudflareStreamError
+        with patch(
+            'gallery.services.cloudflare_stream.create_direct_upload',
+            side_effect=CloudflareStreamError('bad watermark uid'),
+        ):
+            self.client.force_authenticate(user=self.staff)
+            resp = self.client.post(
+                _VIDEO_DIRECT_UPLOAD_URL,
+                {'title_bs': 'Test Video', 'max_duration_seconds': 60},
+                format='json',
+            )
+        self.assertEqual(resp.status_code, status.HTTP_502_BAD_GATEWAY)
+        self.assertEqual(VideoClip.objects.count(), 0)
+
+
+@override_settings(
+    CLOUDFLARE_ACCOUNT_ID="test_account",
+    CLOUDFLARE_STREAM_API_TOKEN="test_token",
+    CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN="customer-test.cloudflarestream.com",
+    CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS=3600,
+    CLOUDFLARE_STREAM_WATERMARK_UID="",
+)
+class VideoClipDirectUploadNoWatermarkTests(TestCase):
+    """Verify that an empty watermark UID results in upload without watermark field."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(username='nowmstaff', password='pass', is_staff=True)
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_empty_watermark_uid_not_forwarded(self, mock_upload):
+        """When CLOUDFLARE_STREAM_WATERMARK_UID is empty, watermark_uid='' is passed (no watermark)."""
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(
+            _VIDEO_DIRECT_UPLOAD_URL,
+            {'title_bs': 'No WM Video', 'max_duration_seconds': 60},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        _, kwargs = mock_upload.call_args
+        self.assertEqual(kwargs['watermark_uid'], '')
