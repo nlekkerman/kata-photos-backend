@@ -832,3 +832,296 @@ class SeedWildlifeTagsCommandTests(TestCase):
         output = self._run_command(dry_run=True)
         self.assertIn(f'Would create {self.TOTAL_SEED_COUNT}', output)
         self.assertIn('would skip 0', output)
+
+
+# ===========================================================================
+# Public search coverage tests — expanded fields
+# ===========================================================================
+
+class AlbumSearchCoverageTests(TestCase):
+    """Expanded ?search= coverage for the public album list endpoint."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.tag_ptice = Tag.objects.create(name_bs='Ptice', name_en='Birds', slug='ptice')
+        self.tag_ribe = Tag.objects.create(name_bs='Ribe', name_en='Fish', slug='ribe')
+
+        self.album_bs = Album.objects.create(
+            slug='bosanska-suma',
+            title_bs='Bosanska šuma',
+            title_en='Bosnian Forest',
+            description_bs='Opis šumskog staništa',
+            description_en='Description of forest habitat',
+            is_published=True,
+        )
+        self.album_bs.tags.add(self.tag_ptice)
+
+        self.album_en = Album.objects.create(
+            slug='mountain-wildlife',
+            title_bs='Planinska divljač',
+            title_en='Mountain Wildlife',
+            description_bs='',
+            description_en='High altitude species',
+            is_published=True,
+        )
+        self.album_en.tags.add(self.tag_ribe)
+
+        self.album_notag = Album.objects.create(
+            slug='bez-tagova',
+            title_bs='Bez tagova',
+            title_en='No Tags',
+            is_published=True,
+        )
+
+    def test_search_by_title_bs(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=bosanska')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertIn('bosanska-suma', slugs)
+        self.assertNotIn('mountain-wildlife', slugs)
+
+    def test_search_by_title_en(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=Mountain+Wildlife')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertIn('mountain-wildlife', slugs)
+        self.assertNotIn('bosanska-suma', slugs)
+
+    def test_search_by_description_bs(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=stanista')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        # 'stanišTa' contains 'stanista' via icontains but SQLite won't match diacritics case-insensitively
+        # use the actual ascii substring present
+        resp2 = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=umskog')
+        self.assertEqual(resp2.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp2.data]
+        self.assertIn('bosanska-suma', slugs)
+
+    def test_search_by_description_en(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=habitat')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertIn('bosanska-suma', slugs)
+        self.assertNotIn('mountain-wildlife', slugs)
+
+    def test_search_by_description_en_altitude(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=altitude')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertIn('mountain-wildlife', slugs)
+
+    def test_search_by_tag_name_bs(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=Ptice')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertIn('bosanska-suma', slugs)
+        self.assertNotIn('mountain-wildlife', slugs)
+
+    def test_search_by_tag_name_en(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=Birds')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertIn('bosanska-suma', slugs)
+
+    def test_search_by_tag_slug(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=ribe')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertIn('mountain-wildlife', slugs)
+        self.assertNotIn('bosanska-suma', slugs)
+
+    def test_empty_search_returns_all_published(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 3)
+
+    def test_whitespace_only_search_returns_all_published(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=   ')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 3)
+
+    def test_unknown_tag_returns_empty(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?tag=nepostoji')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 0)
+
+    def test_combined_tag_and_search(self):
+        # tag=ptice narrows to bosanska-suma; search=bosanska further confirms it
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?tag=ptice&search=bosanska')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertIn('bosanska-suma', slugs)
+        self.assertNotIn('mountain-wildlife', slugs)
+
+    def test_combined_tag_and_search_no_cross_match(self):
+        # tag=ptice but search matches only mountain-wildlife title → empty
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?tag=ptice&search=altitude')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 0)
+
+    def test_no_duplicate_results_when_album_has_multiple_tags(self):
+        self.album_bs.tags.add(self.tag_ribe)  # album_bs now has both tags
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=bosanska')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertEqual(slugs.count('bosanska-suma'), 1)
+
+    def test_album_with_no_tags_not_excluded_from_empty_search(self):
+        resp = self.client.get(_PUBLIC_ALBUMS_URL)
+        slugs = [a['slug'] for a in resp.data]
+        self.assertIn('bez-tagova', slugs)
+
+
+class VideoSearchCoverageTests(TestCase):
+    """Expanded ?search= coverage for the public video list endpoint."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.tag_planina = Tag.objects.create(name_bs='Planina', name_en='Mountain', slug='planina')
+        self.tag_rijeka = Tag.objects.create(name_bs='Rijeka', name_en='River', slug='rijeka')
+
+        self.album = Album.objects.create(
+            slug='wildlife-album',
+            title_bs='Divljač albuma',
+            title_en='Wildlife Album',
+            is_published=True,
+        )
+
+        self.video_bs = VideoClip.objects.create(
+            title_bs='Orlovi u planini',
+            title_en='Eagles in the Mountains',
+            description_bs='Snimci orlova iz zraka',
+            description_en='Aerial footage of eagles',
+            album=self.album,
+            cloudflare_uid='uid-orlovi',
+            status=VideoClip.STATUS_READY,
+            is_public=True,
+        )
+        self.video_bs.tags.add(self.tag_planina)
+
+        self.video_en = VideoClip.objects.create(
+            title_bs='Riječne ribe',
+            title_en='River Fish',
+            description_bs='',
+            description_en='Underwater river footage',
+            album=None,
+            cloudflare_uid='uid-ribe-video',
+            status=VideoClip.STATUS_READY,
+            is_public=True,
+        )
+        self.video_en.tags.add(self.tag_rijeka)
+
+        self.video_notag = VideoClip.objects.create(
+            title_bs='Bez tagova video',
+            title_en='No Tags Video',
+            cloudflare_uid='uid-notag',
+            status=VideoClip.STATUS_READY,
+            is_public=True,
+        )
+
+    def test_search_by_title_bs(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=orlovi')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-orlovi', uids)
+        self.assertNotIn('uid-ribe-video', uids)
+
+    def test_search_by_title_en(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=River+Fish')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-ribe-video', uids)
+        self.assertNotIn('uid-orlovi', uids)
+
+    def test_search_by_description_bs(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=zraka')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-orlovi', uids)
+
+    def test_search_by_description_en(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=Underwater')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-ribe-video', uids)
+        self.assertNotIn('uid-orlovi', uids)
+
+    def test_search_by_album_title_bs(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=albuma')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-orlovi', uids)
+
+    def test_search_by_album_title_en(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=Wildlife+Album')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-orlovi', uids)
+
+    def test_search_by_tag_name_bs(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=Planina')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-orlovi', uids)
+        self.assertNotIn('uid-ribe-video', uids)
+
+    def test_search_by_tag_name_en(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=River')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-ribe-video', uids)
+
+    def test_search_by_tag_slug(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=rijeka')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-ribe-video', uids)
+        self.assertNotIn('uid-orlovi', uids)
+
+    def test_empty_search_returns_all_public_ready(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 3)
+
+    def test_whitespace_only_search_returns_all_public_ready(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=   ')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 3)
+
+    def test_unknown_tag_returns_empty(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?tag=nepostoji')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 0)
+
+    def test_combined_tag_and_search(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?tag=planina&search=orlovi')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-orlovi', uids)
+        self.assertNotIn('uid-ribe-video', uids)
+
+    def test_combined_tag_and_search_no_cross_match(self):
+        # tag=planina but search matches only ribe video → empty
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?tag=planina&search=Underwater')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 0)
+
+    def test_no_duplicate_results_when_video_has_multiple_tags(self):
+        self.video_bs.tags.add(self.tag_rijeka)  # video_bs now has both tags
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=orlovi')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertEqual(uids.count('uid-orlovi'), 1)
+
+    def test_video_with_no_tags_not_excluded_from_empty_search(self):
+        resp = self.client.get(_PUBLIC_VIDEOS_URL)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        self.assertIn('uid-notag', uids)
+
+    def test_video_without_album_does_not_error_on_album_search(self):
+        # video_en has no album; searching by album title should not 500
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=Wildlife+Album')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data]
+        # uid-ribe-video has no album, should not appear for album-title match
+        self.assertNotIn('uid-ribe-video', uids)

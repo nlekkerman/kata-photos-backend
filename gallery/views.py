@@ -72,14 +72,17 @@ class AlbumListCreateView(LangContextMixin, generics.ListCreateAPIView):
         qs = Album.objects.filter(is_published=True).prefetch_related('tags')
         tag_slug = self.request.query_params.get('tag')
         if tag_slug:
-            qs = qs.filter(tags__slug=tag_slug)
+            qs = qs.filter(tags__slug=tag_slug).distinct()
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
                 Q(title_bs__icontains=search) |
                 Q(title_en__icontains=search) |
+                Q(description_bs__icontains=search) |
+                Q(description_en__icontains=search) |
                 Q(tags__name_bs__icontains=search) |
-                Q(tags__name_en__icontains=search)
+                Q(tags__name_en__icontains=search) |
+                Q(tags__slug__icontains=search)
             ).distinct()
         return qs
 
@@ -264,14 +267,19 @@ class VideoClipListView(generics.ListAPIView):
             qs = qs.filter(album_id=album_pk)
         tag_slug = self.request.query_params.get('tag')
         if tag_slug:
-            qs = qs.filter(tags__slug=tag_slug)
+            qs = qs.filter(tags__slug=tag_slug).distinct()
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
                 Q(title_bs__icontains=search) |
                 Q(title_en__icontains=search) |
+                Q(description_bs__icontains=search) |
+                Q(description_en__icontains=search) |
+                Q(album__title_bs__icontains=search) |
+                Q(album__title_en__icontains=search) |
                 Q(tags__name_bs__icontains=search) |
-                Q(tags__name_en__icontains=search)
+                Q(tags__name_en__icontains=search) |
+                Q(tags__slug__icontains=search)
             ).distinct()
         return qs
 
