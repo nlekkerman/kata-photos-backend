@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from PIL import Image
 from rest_framework import status
@@ -779,3 +780,55 @@ class TagFilterTests(TestCase):
         resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=orlovi', format='json')
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(len(resp.data), 1)
+
+
+class SeedWildlifeTagsCommandTests(TestCase):
+    """Tests for the seed_pljesevica_wildlife_tags management command."""
+
+    # Total number of entries in SEED_TAGS in the management command.
+    TOTAL_SEED_COUNT = 84
+
+    def _run_command(self, dry_run=False):
+        out = io.StringIO()
+        call_command('seed_pljesevica_wildlife_tags', stdout=out, dry_run=dry_run)
+        return out.getvalue()
+
+    def test_command_creates_all_seed_tags(self):
+        self._run_command()
+        self.assertEqual(Tag.objects.count(), self.TOTAL_SEED_COUNT)
+
+    def test_command_output_reports_correct_created_count(self):
+        output = self._run_command()
+        self.assertIn(f'Created {self.TOTAL_SEED_COUNT}', output)
+        self.assertIn('skipped 0', output)
+
+    def test_command_idempotent_on_rerun(self):
+        self._run_command()
+        self._run_command()
+        self.assertEqual(Tag.objects.count(), self.TOTAL_SEED_COUNT)
+
+    def test_second_run_reports_all_skipped(self):
+        self._run_command()
+        output = self._run_command()
+        self.assertIn(f'skipped {self.TOTAL_SEED_COUNT}', output)
+        self.assertIn('Created 0', output)
+
+    def test_existing_tag_by_slug_is_not_duplicated(self):
+        Tag.objects.create(name_bs='Ptice', name_en='Birds', slug='ptice')
+        self._run_command()
+        self.assertEqual(Tag.objects.filter(slug='ptice').count(), 1)
+
+    def test_existing_edited_name_en_is_not_overwritten(self):
+        Tag.objects.create(name_bs='Ptice', name_en='Custom English Name', slug='ptice')
+        self._run_command()
+        tag = Tag.objects.get(slug='ptice')
+        self.assertEqual(tag.name_en, 'Custom English Name')
+
+    def test_dry_run_does_not_create_tags(self):
+        self._run_command(dry_run=True)
+        self.assertEqual(Tag.objects.count(), 0)
+
+    def test_dry_run_output_reports_would_create(self):
+        output = self._run_command(dry_run=True)
+        self.assertIn(f'Would create {self.TOTAL_SEED_COUNT}', output)
+        self.assertIn('would skip 0', output)
