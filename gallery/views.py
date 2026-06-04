@@ -35,6 +35,7 @@ from .serializers import (
     AlbumWriteSerializer,
     FieldNoteDetailSerializer,
     FieldNoteListSerializer,
+    HeroVideoSerializer,
     MediaItemPublicSerializer,
     MediaItemWriteSerializer,
     VideoClipDirectUploadRequestSerializer,
@@ -786,4 +787,33 @@ class AdminVideoRefreshStatusView(generics.GenericAPIView):
             video.save(update_fields=update_fields)
 
         return Response(AdminVideoItemSerializer(video).data)
+
+
+# ===========================================================================
+# Public hero-video endpoint
+# ===========================================================================
+
+class HeroVideoView(generics.GenericAPIView):
+    """
+    GET /api/public/hero-video/
+
+    Returns the latest published, ready VideoClip for the landing-page hero section.
+    No authentication required.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = HeroVideoSerializer
+
+    def get(self, request):
+        video = (
+            VideoClip.objects
+            .select_related('album')
+            .filter(is_public=True, status=VideoClip.STATUS_READY)
+            .order_by('-created_at')
+            .first()
+        )
+        if video is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(video)
+        return Response(serializer.data)
 

@@ -851,3 +851,37 @@ class AdminVideoCompleteUploadSerializer(serializers.Serializer):
             )
         return data
 
+
+# ---------------------------------------------------------------------------
+# Public hero-video serializer
+# ---------------------------------------------------------------------------
+
+class HeroVideoSerializer(serializers.ModelSerializer):
+    album_title_bs = serializers.SerializerMethodField()
+    album_title_en = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VideoClip
+        fields = [
+            'id',
+            'title_bs',
+            'title_en',
+            'album_id',
+            'album_title_bs',
+            'album_title_en',
+            'duration_seconds',
+            'cloudflare_uid',
+            'cloudflare_playback_url',
+            'cloudflare_thumbnail_url',
+        ]
+
+    def get_album_title_bs(self, obj):
+        if obj.album is None:
+            return ''
+        return obj.album.title_bs
+
+    def get_album_title_en(self, obj):
+        if obj.album is None:
+            return ''
+        return obj.album.title_en
+
