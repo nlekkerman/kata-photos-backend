@@ -410,6 +410,7 @@ class VideoClipDirectUploadWatermarkTests(TestCase):
         clip = VideoClip.objects.get()
         self.assertEqual(clip.cloudflare_uid, 'abc123uid')
         self.assertEqual(clip.status, VideoClip.STATUS_UPLOADING)
+        self.assertTrue(clip.is_public)
 
     @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
     def test_response_includes_upload_url(self, mock_upload):
