@@ -146,7 +146,9 @@ class Command(BaseCommand):
         seen_slugs: set[str] = set()
 
         for name_bs, name_en in SEED_TAGS:
-            slug = slugify(name_bs)
+            # Django's slugify drops 'đ' entirely; transliterate it to 'd'
+            # so "Smeđi medvjed" → "smedi-medvjed" instead of "smei-medvjed".
+            slug = slugify(name_bs.replace('đ', 'd').replace('Đ', 'd'))
 
             # Guard against duplicate entries within the seed list itself.
             if slug in seen_slugs:
