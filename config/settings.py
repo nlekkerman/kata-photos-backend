@@ -31,7 +31,10 @@ DEBUG = os.getenv("DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [
     host.strip()
-    for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+    for host in os.getenv(
+        "ALLOWED_HOSTS",
+        "127.0.0.1,localhost,kata-wild-backend-5b989da54ce2.herokuapp.com",
+    ).split(",")
     if host.strip()
 ]
 
@@ -41,7 +44,9 @@ CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CSRF_TRUSTED_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173",
+        "http://localhost:5173,http://127.0.0.1:5173"
+        ",https://kata-photos.netlify.app"
+        ",https://kata-wild-backend-5b989da54ce2.herokuapp.com",
     ).split(",")
     if origin.strip()
 ]
@@ -52,7 +57,8 @@ CORS_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173",
+        "http://localhost:5173,http://127.0.0.1:5173"
+        ",https://kata-photos.netlify.app",
     ).split(",")
     if origin.strip()
 ]
