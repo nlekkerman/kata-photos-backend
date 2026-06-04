@@ -42,10 +42,12 @@ class SessionViewTests(TestCase):
 
 
 class CsrfViewTests(TestCase):
-    def test_csrf_endpoint_returns_200(self):
+    def test_csrf_endpoint_returns_200_with_token(self):
         response = self.client.get(reverse("auth-csrf"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"detail": "CSRF cookie set"})
+        data = response.json()
+        self.assertIn("csrfToken", data)
+        self.assertTrue(len(data["csrfToken"]) > 0)
 
 
 class LogoutViewTests(TestCase):

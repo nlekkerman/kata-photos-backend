@@ -37,8 +37,7 @@ class CsrfView(APIView):
     authentication_classes = []
 
     def get(self, request):
-        get_token(request)  # sets the cookie on the response
-        return Response({"detail": "CSRF cookie set"})
+        return Response({"csrfToken": get_token(request)})
 
 
 class LogoutView(APIView):
