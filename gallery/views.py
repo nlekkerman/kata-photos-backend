@@ -17,7 +17,7 @@ class CloudflareServiceError(APIException):
 
 logger = logging.getLogger(__name__)
 
-from .models import Album, FieldNote, MediaItem, VideoClip
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip
 from .serializers import (
     AdminImageGallerySerializer,
     AdminImageGalleryWriteSerializer,
@@ -38,6 +38,8 @@ from .serializers import (
     HeroVideoSerializer,
     MediaItemPublicSerializer,
     MediaItemWriteSerializer,
+    TagSerializer,
+    TagWriteSerializer,
     VideoClipDirectUploadRequestSerializer,
     VideoClipSerializer,
 )
@@ -67,7 +69,19 @@ class AlbumListCreateView(LangContextMixin, generics.ListCreateAPIView):
     def get_queryset(self):
         if self.request.method == 'POST':
             return Album.objects.all()
-        return Album.objects.filter(is_published=True)
+        qs = Album.objects.filter(is_published=True).prefetch_related('tags')
+        tag_slug = self.request.query_params.get('tag')
+        if tag_slug:
+            qs = qs.filter(tags__slug=tag_slug)
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(title_bs__icontains=search) |
+                Q(title_en__icontains=search) |
+                Q(tags__name_bs__icontains=search) |
+                Q(tags__name_en__icontains=search)
+            ).distinct()
+        return qs
 
 
 class AlbumRetrieveUpdateDestroyView(LangContextMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -234,20 +248,31 @@ class VideoClipListView(generics.ListAPIView):
 
     Public users see only ``is_public=True`` and ``status='ready'`` clips.
     Staff/admin users see all clips.
-    Supports optional ``?album=<pk>`` filter.
+    Supports optional ``?album=<pk>``, ``?tag=<slug>``, ``?search=<query>`` filters.
     """
 
     serializer_class = VideoClipSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        qs = VideoClip.objects.select_related('album').all()
+        qs = VideoClip.objects.select_related('album').prefetch_related('tags').all()
         user = self.request.user
         if not (user and user.is_authenticated and user.is_staff):
             qs = qs.filter(is_public=True, status=VideoClip.STATUS_READY)
         album_pk = self.request.query_params.get('album')
         if album_pk:
             qs = qs.filter(album_id=album_pk)
+        tag_slug = self.request.query_params.get('tag')
+        if tag_slug:
+            qs = qs.filter(tags__slug=tag_slug)
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(title_bs__icontains=search) |
+                Q(title_en__icontains=search) |
+                Q(tags__name_bs__icontains=search) |
+                Q(tags__name_en__icontains=search)
+            ).distinct()
         return qs
 
 
@@ -789,6 +814,42 @@ class AdminVideoRefreshStatusView(generics.GenericAPIView):
             video.save(update_fields=update_fields)
 
         return Response(AdminVideoItemSerializer(video).data)
+
+
+# ===========================================================================
+# Admin tag endpoints
+# ===========================================================================
+
+class AdminTagListCreateView(generics.ListCreateAPIView):
+    """
+    GET  /api/gallery/admin/tags/  — list all tags (admin).
+    POST /api/gallery/admin/tags/  — create a tag (admin).
+    """
+
+    permission_classes = [IsAdminUser]
+    queryset = Tag.objects.all()
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return TagWriteSerializer
+        return TagSerializer
+
+
+class AdminTagRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/gallery/admin/tags/<pk>/  — retrieve a tag (admin).
+    PATCH  /api/gallery/admin/tags/<pk>/  — update a tag (admin).
+    DELETE /api/gallery/admin/tags/<pk>/  — delete a tag (admin).
+    """
+
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get', 'patch', 'delete', 'head', 'options']
+    queryset = Tag.objects.all()
+
+    def get_serializer_class(self):
+        if self.request.method == 'PATCH':
+            return TagWriteSerializer
+        return TagSerializer
 
 
 # ===========================================================================

@@ -2,6 +2,26 @@ import os
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils.text import slugify
+
+
+class Tag(models.Model):
+    name_bs = models.CharField(max_length=100)
+    name_en = models.CharField(max_length=100, blank=True)
+    slug = models.SlugField(max_length=120, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['slug']
+
+    def __str__(self):
+        return self.name_bs or self.name_en or self.slug
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name_bs or self.name_en)
+        super().save(*args, **kwargs)
 
 
 class Album(models.Model):
@@ -39,6 +59,7 @@ class Album(models.Model):
     seo_title_bs = models.CharField(max_length=200, blank=True)
     seo_description_en = models.TextField(blank=True)
     seo_description_bs = models.TextField(blank=True)
+    tags = models.ManyToManyField('Tag', blank=True, related_name='albums')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -211,6 +232,7 @@ class VideoClip(models.Model):
     duration_seconds = models.PositiveIntegerField(null=True, blank=True)
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_UPLOADING)
     is_public = models.BooleanField(default=False)
+    tags = models.ManyToManyField('Tag', blank=True, related_name='video_clips')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

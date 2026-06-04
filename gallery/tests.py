@@ -9,7 +9,7 @@ from PIL import Image
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from .models import Album, MediaItem, VideoClip
+from .models import Album, MediaItem, Tag, VideoClip
 
 ALBUMS_URL = '/api/gallery/albums/'
 
@@ -488,3 +488,294 @@ class VideoClipDirectUploadNoWatermarkTests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         _, kwargs = mock_upload.call_args
         self.assertEqual(kwargs['watermark_uid'], '')
+
+
+# ===========================================================================
+# Tag tests
+# ===========================================================================
+
+_ADMIN_TAGS_URL = '/api/gallery/admin/tags/'
+_PUBLIC_ALBUMS_URL = '/api/gallery/albums/'
+_PUBLIC_VIDEOS_URL = '/api/gallery/videos/'
+
+
+class TagModelTests(TestCase):
+    """Unit tests for the Tag model."""
+
+    def test_tag_creation_with_name_bs(self):
+        tag = Tag.objects.create(name_bs='Ptice', slug='ptice')
+        self.assertEqual(str(tag), 'Ptice')
+        self.assertEqual(tag.slug, 'ptice')
+
+    def test_tag_slug_auto_generated_on_save(self):
+        tag = Tag(name_bs='Divlje svinje')
+        tag.save()
+        self.assertEqual(tag.slug, 'divlje-svinje')
+
+    def test_tag_slug_uniqueness_enforced(self):
+        from django.db import IntegrityError
+        Tag.objects.create(name_bs='Ptice', slug='ptice')
+        with self.assertRaises(IntegrityError):
+            Tag.objects.create(name_bs='Ptice duplikat', slug='ptice')
+
+    def test_tag_name_en_is_optional(self):
+        tag = Tag.objects.create(name_bs='Medvjedi', slug='medvjedi')
+        self.assertEqual(tag.name_en, '')
+
+
+@override_settings(
+    CLOUDFLARE_ACCOUNT_ID="",
+    CLOUDFLARE_STREAM_API_TOKEN="",
+    CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS=3600,
+    CLOUDFLARE_STREAM_WATERMARK_UID="",
+)
+class TagAdminAPITests(TestCase):
+    """Admin API: create, list, update, delete tags."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(username='tagstaff', password='pass', is_staff=True)
+        self.user = User.objects.create_user(username='taguser', password='pass', is_staff=False)
+
+    def test_staff_can_create_tag(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(_ADMIN_TAGS_URL, {'name_bs': 'Ptice'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Tag.objects.count(), 1)
+        tag = Tag.objects.get()
+        self.assertEqual(tag.name_bs, 'Ptice')
+        self.assertEqual(tag.slug, 'ptice')
+
+    def test_staff_can_list_tags(self):
+        Tag.objects.create(name_bs='Ptice', slug='ptice')
+        Tag.objects.create(name_bs='Medvjedi', slug='medvjedi')
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(_ADMIN_TAGS_URL, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 2)
+
+    def test_staff_can_update_tag(self):
+        tag = Tag.objects.create(name_bs='Ptice', slug='ptice')
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.patch(
+            f'{_ADMIN_TAGS_URL}{tag.pk}/',
+            {'name_en': 'Birds'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        tag.refresh_from_db()
+        self.assertEqual(tag.name_en, 'Birds')
+
+    def test_staff_can_delete_tag(self):
+        tag = Tag.objects.create(name_bs='Ptice', slug='ptice')
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.delete(f'{_ADMIN_TAGS_URL}{tag.pk}/')
+        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Tag.objects.count(), 0)
+
+    def test_non_staff_cannot_create_tag(self):
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.post(_ADMIN_TAGS_URL, {'name_bs': 'Ptice'}, format='json')
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+    def test_anonymous_cannot_create_tag(self):
+        resp = self.client.post(_ADMIN_TAGS_URL, {'name_bs': 'Ptice'}, format='json')
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+    def test_missing_name_bs_returns_400(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(_ADMIN_TAGS_URL, {'name_en': 'Birds'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('name_bs', resp.data)
+
+    def test_duplicate_slug_returns_400(self):
+        Tag.objects.create(name_bs='Ptice', slug='ptice')
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(
+            _ADMIN_TAGS_URL,
+            {'name_bs': 'Ptice duplkat', 'slug': 'ptice'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('slug', resp.data)
+
+    def test_very_long_name_bs_rejected(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(
+            _ADMIN_TAGS_URL,
+            {'name_bs': 'a' * 101},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class TagAttachmentTests(TestCase):
+    """Tags can be assigned to albums and videos."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(username='attachstaff', password='pass', is_staff=True)
+        self.tag_ptice = Tag.objects.create(name_bs='Ptice', slug='ptice')
+        self.tag_ribe = Tag.objects.create(name_bs='Ribe', slug='ribe')
+
+    def test_staff_can_attach_tags_to_album_on_create(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(
+            _PUBLIC_ALBUMS_URL,
+            {'title_bs': 'Priroda', 'tags': [self.tag_ptice.pk]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        album = Album.objects.get()
+        self.assertIn(self.tag_ptice, album.tags.all())
+
+    def test_staff_can_attach_tags_to_album_on_patch(self):
+        album = Album.objects.create(slug='priroda', title_bs='Priroda')
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.patch(
+            f'{_PUBLIC_ALBUMS_URL}priroda/',
+            {'tags': [self.tag_ptice.pk, self.tag_ribe.pk]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        album.refresh_from_db()
+        self.assertEqual(album.tags.count(), 2)
+
+    def test_patch_with_empty_tags_clears_tags(self):
+        album = Album.objects.create(slug='priroda', title_bs='Priroda')
+        album.tags.set([self.tag_ptice])
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.patch(
+            f'{_PUBLIC_ALBUMS_URL}priroda/',
+            {'tags': []},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        album.refresh_from_db()
+        self.assertEqual(album.tags.count(), 0)
+
+    def test_album_with_no_tags_is_valid(self):
+        album = Album.objects.create(slug='bez-tagova', title_bs='Bez tagova')
+        self.assertEqual(album.tags.count(), 0)
+
+    def test_deleting_tag_does_not_delete_album(self):
+        album = Album.objects.create(slug='priroda', title_bs='Priroda')
+        album.tags.add(self.tag_ptice)
+        self.tag_ptice.delete()
+        self.assertTrue(Album.objects.filter(pk=album.pk).exists())
+        self.assertEqual(album.tags.count(), 0)
+
+    def test_videoclip_can_have_tags(self):
+        video = VideoClip.objects.create(
+            title_bs='Test video', cloudflare_uid='uid-tag-test',
+            status=VideoClip.STATUS_READY, is_public=True,
+        )
+        video.tags.set([self.tag_ptice])
+        self.assertIn(self.tag_ptice, video.tags.all())
+
+
+class TagPublicResponseTests(TestCase):
+    """Public responses include tags in the correct format."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.tag = Tag.objects.create(name_bs='Ptice', name_en='Birds', slug='ptice')
+
+    def test_public_album_list_includes_tags(self):
+        album = Album.objects.create(slug='priroda', title_bs='Priroda', is_published=True)
+        album.tags.add(self.tag)
+        resp = self.client.get(_PUBLIC_ALBUMS_URL, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 1)
+        tag_data = resp.data[0]['tags'][0]
+        self.assertEqual(tag_data['slug'], 'ptice')
+        self.assertEqual(tag_data['name_bs'], 'Ptice')
+        self.assertEqual(tag_data['name_en'], 'Birds')
+
+    def test_public_album_with_no_tags_returns_empty_list(self):
+        Album.objects.create(slug='priroda', title_bs='Priroda', is_published=True)
+        resp = self.client.get(_PUBLIC_ALBUMS_URL, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data[0]['tags'], [])
+
+    def test_public_video_list_includes_tags(self):
+        video = VideoClip.objects.create(
+            title_bs='Test video', cloudflare_uid='uid-pub-tag',
+            status=VideoClip.STATUS_READY, is_public=True,
+        )
+        video.tags.add(self.tag)
+        resp = self.client.get(_PUBLIC_VIDEOS_URL, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 1)
+        tag_data = resp.data[0]['tags'][0]
+        self.assertEqual(tag_data['slug'], 'ptice')
+
+
+class TagFilterTests(TestCase):
+    """Filtering public album/video lists by tag slug."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.tag_ptice = Tag.objects.create(name_bs='Ptice', slug='ptice')
+        self.tag_ribe = Tag.objects.create(name_bs='Ribe', slug='ribe')
+
+    def test_filter_albums_by_tag_returns_matching_only(self):
+        a1 = Album.objects.create(slug='ptice-album', title_bs='Ptice album', is_published=True)
+        a1.tags.add(self.tag_ptice)
+        a2 = Album.objects.create(slug='ribe-album', title_bs='Ribe album', is_published=True)
+        a2.tags.add(self.tag_ribe)
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?tag=ptice', format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data[0]['slug'], 'ptice-album')
+
+    def test_filter_albums_by_unknown_tag_returns_empty(self):
+        Album.objects.create(slug='ptice-album', title_bs='Ptice album', is_published=True)
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?tag=nepostoji', format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 0)
+
+    def test_search_albums_by_title_bs(self):
+        a1 = Album.objects.create(slug='priroda', title_bs='Priroda bosanska', is_published=True)
+        Album.objects.create(slug='grad', title_bs='Gradska arhitektura', is_published=True)
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=priroda', format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data[0]['slug'], 'priroda')
+
+    def test_search_albums_by_tag_name(self):
+        a1 = Album.objects.create(slug='ptice-album', title_bs='Wildlife', is_published=True)
+        a1.tags.add(self.tag_ptice)
+        Album.objects.create(slug='grad', title_bs='Grad', is_published=True)
+        resp = self.client.get(f'{_PUBLIC_ALBUMS_URL}?search=Ptice', format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 1)
+
+    def test_filter_videos_by_tag(self):
+        v1 = VideoClip.objects.create(
+            title_bs='Ptice video', cloudflare_uid='uid-ptice',
+            status=VideoClip.STATUS_READY, is_public=True,
+        )
+        v1.tags.add(self.tag_ptice)
+        v2 = VideoClip.objects.create(
+            title_bs='Ribe video', cloudflare_uid='uid-ribe',
+            status=VideoClip.STATUS_READY, is_public=True,
+        )
+        v2.tags.add(self.tag_ribe)
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?tag=ptice', format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data[0]['cloudflare_uid'], 'uid-ptice')
+
+    def test_search_videos_by_title(self):
+        VideoClip.objects.create(
+            title_bs='Orlovi u letu', cloudflare_uid='uid-orlovi',
+            status=VideoClip.STATUS_READY, is_public=True,
+        )
+        VideoClip.objects.create(
+            title_bs='Riba na vodi', cloudflare_uid='uid-riba',
+            status=VideoClip.STATUS_READY, is_public=True,
+        )
+        resp = self.client.get(f'{_PUBLIC_VIDEOS_URL}?search=orlovi', format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 1)

@@ -5,6 +5,8 @@ from .views import (
     AdminImageGalleryRetrieveUpdateDestroyView,
     AdminImageItemListCreateView,
     AdminImageItemRetrieveUpdateDestroyView,
+    AdminTagListCreateView,
+    AdminTagRetrieveUpdateDestroyView,
     AdminVideoCompleteUploadView,
     AdminVideoDirectUploadView,
     AdminVideoGalleryListCreateView,
@@ -40,6 +42,12 @@ urlpatterns = [
     path('videos/direct-upload/', VideoClipDirectUploadView.as_view(), name='videoclip-direct-upload'),
     path('videos/<int:pk>/', VideoClipDetailView.as_view(), name='videoclip-detail'),
     path('videos/<int:pk>/sync/', VideoClipSyncView.as_view(), name='videoclip-sync'),
+
+    # ------------------------------------------------------------------
+    # Admin-only endpoints — tags
+    # ------------------------------------------------------------------
+    path('admin/tags/', AdminTagListCreateView.as_view(), name='admin-tag-list'),
+    path('admin/tags/<int:pk>/', AdminTagRetrieveUpdateDestroyView.as_view(), name='admin-tag-detail'),
 
     # ------------------------------------------------------------------
     # Admin-only endpoints — image galleries

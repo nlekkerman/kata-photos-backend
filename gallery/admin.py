@@ -1,6 +1,15 @@
 from django.contrib import admin
 
-from .models import Album, FieldNote, MediaItem, VideoClip
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip
+
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ('name_bs', 'name_en', 'slug', 'created_at')
+    search_fields = ('name_bs', 'name_en', 'slug')
+    ordering = ('slug',)
+    readonly_fields = ('created_at', 'updated_at')
+    prepopulated_fields = {'slug': ('name_bs',)}
 
 
 @admin.register(Album)
@@ -11,9 +20,13 @@ class AlbumAdmin(admin.ModelAdmin):
     ordering = ('gallery_type', 'display_order', 'title_bs')
     readonly_fields = ('created_at', 'updated_at')
     prepopulated_fields = {'slug': ('title_bs',)}
+    filter_horizontal = ('tags',)
     fieldsets = (
         ('Publishing / Ordering', {
             'fields': ('slug', 'gallery_type', 'is_published', 'display_order', 'cover_media'),
+        }),
+        ('Tags', {
+            'fields': ('tags',),
         }),
         ('Bosnian Content', {
             'fields': ('title_bs', 'description_bs'),
@@ -99,9 +112,13 @@ class VideoClipAdmin(admin.ModelAdmin):
     search_fields = ('title_bs', 'title_en', 'cloudflare_uid')
     ordering = ('-created_at',)
     readonly_fields = ('cloudflare_uid', 'created_at', 'updated_at')
+    filter_horizontal = ('tags',)
     fieldsets = (
         ('Album / Publishing', {
             'fields': ('album', 'status', 'is_public'),
+        }),
+        ('Tags', {
+            'fields': ('tags',),
         }),
         ('Bosnian Content', {
             'fields': ('title_bs', 'description_bs'),

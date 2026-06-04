@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Album, FieldNote, MediaItem, VideoClip
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip
 
 # ---------------------------------------------------------------------------
 # Upload safety constants (Phase 6)
@@ -40,8 +40,73 @@ def _get_thumbnail_url(obj, request):
     return obj.thumbnail_url
 
 
-class AlbumWriteSerializer(serializers.ModelSerializer):
+# ---------------------------------------------------------------------------
+# Tag serializers
+# ---------------------------------------------------------------------------
+
+class TagSerializer(serializers.ModelSerializer):
+    """Read serializer for tags (public and admin)."""
+
+    class Meta:
+        model = Tag
+        fields = ['id', 'name_bs', 'name_en', 'slug']
+
+
+class TagWriteSerializer(serializers.ModelSerializer):
+    """Write serializer for creating/updating tags (admin only)."""
+
     slug = serializers.SlugField(required=False, allow_blank=False)
+
+    class Meta:
+        model = Tag
+        fields = ['id', 'name_bs', 'name_en', 'slug', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'name_bs': {'required': True, 'allow_blank': False},
+        }
+
+    def validate(self, data):
+        from django.utils.text import slugify as _slugify
+
+        if self.instance is None and not data.get('slug'):
+            data['slug'] = _slugify(data['name_bs'])
+
+        slug = data.get('slug')
+        if slug:
+            qs = Tag.objects.filter(slug=slug)
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {'slug': f'A tag with slug "{slug}" already exists.'}
+                )
+
+        return data
+
+
+class _TagsM2MMixin:
+    """Mixin for ModelSerializers that have a writable ``tags`` M2M field."""
+
+    def create(self, validated_data):
+        tags = validated_data.pop('tags', [])
+        instance = super().create(validated_data)
+        if tags is not None:
+            instance.tags.set(tags)
+        return instance
+
+    def update(self, instance, validated_data):
+        tags = validated_data.pop('tags', None)
+        instance = super().update(instance, validated_data)
+        if tags is not None:
+            instance.tags.set(tags)
+        return instance
+
+
+class AlbumWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
+    slug = serializers.SlugField(required=False, allow_blank=False)
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False
+    )
 
     class Meta:
         model = Album
@@ -58,6 +123,7 @@ class AlbumWriteSerializer(serializers.ModelSerializer):
             'seo_description_en',
             'display_order',
             'is_published',
+            'tags',
             'created_at',
             'updated_at',
         ]
@@ -228,10 +294,11 @@ class AlbumListSerializer(serializers.ModelSerializer):
     cover = MediaCoverSerializer(source='cover_media', read_only=True)
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
+    tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
         model = Album
-        fields = ['id', 'slug', 'title', 'description', 'display_order', 'cover']
+        fields = ['id', 'slug', 'title', 'description', 'display_order', 'cover', 'tags']
 
     def get_title(self, obj):
         lang = self.context.get('lang', 'en')
@@ -248,6 +315,7 @@ class AlbumDetailSerializer(serializers.ModelSerializer):
     description = serializers.SerializerMethodField()
     seo_title = serializers.SerializerMethodField()
     seo_description = serializers.SerializerMethodField()
+    tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
         model = Album
@@ -260,6 +328,7 @@ class AlbumDetailSerializer(serializers.ModelSerializer):
             'seo_description',
             'display_order',
             'cover',
+            'tags',
             'created_at',
         ]
 
@@ -395,6 +464,8 @@ class FieldNoteDetailSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 class VideoClipSerializer(serializers.ModelSerializer):
+    tags = TagSerializer(many=True, read_only=True)
+
     class Meta:
         model = VideoClip
         fields = [
@@ -410,6 +481,7 @@ class VideoClipSerializer(serializers.ModelSerializer):
             'duration_seconds',
             'status',
             'is_public',
+            'tags',
             'created_at',
             'updated_at',
         ]
@@ -450,6 +522,7 @@ class AdminImageGallerySerializer(serializers.ModelSerializer):
     cover = MediaCoverSerializer(source='cover_media', read_only=True)
     # Populated by annotated queryset in the view.
     image_count = serializers.IntegerField(read_only=True, default=0)
+    tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
         model = Album
@@ -464,12 +537,13 @@ class AdminImageGallerySerializer(serializers.ModelSerializer):
             'display_order',
             'image_count',
             'cover',
+            'tags',
             'created_at',
             'updated_at',
         ]
 
 
-class AdminImageGalleryWriteSerializer(serializers.ModelSerializer):
+class AdminImageGalleryWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
     """Write serializer for creating/updating image galleries (admin only).
 
     Identical validation logic to AlbumWriteSerializer.
@@ -477,6 +551,9 @@ class AdminImageGalleryWriteSerializer(serializers.ModelSerializer):
     """
 
     slug = serializers.SlugField(required=False, allow_blank=False)
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False
+    )
 
     class Meta:
         model = Album
@@ -493,6 +570,7 @@ class AdminImageGalleryWriteSerializer(serializers.ModelSerializer):
             'seo_description_en',
             'display_order',
             'is_published',
+            'tags',
             'created_at',
             'updated_at',
         ]
@@ -536,6 +614,7 @@ class AdminVideoGallerySerializer(serializers.ModelSerializer):
     ready_video_count = serializers.IntegerField(read_only=True, default=0)
     processing_video_count = serializers.IntegerField(read_only=True, default=0)
     failed_video_count = serializers.IntegerField(read_only=True, default=0)
+    tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
         model = Album
@@ -553,18 +632,22 @@ class AdminVideoGallerySerializer(serializers.ModelSerializer):
             'processing_video_count',
             'failed_video_count',
             'cover',
+            'tags',
             'created_at',
             'updated_at',
         ]
 
 
-class AdminVideoGalleryWriteSerializer(serializers.ModelSerializer):
+class AdminVideoGalleryWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
     """Write serializer for creating/updating video galleries (admin only).
 
     gallery_type='video' is set by the view on create/update.
     """
 
     slug = serializers.SlugField(required=False, allow_blank=False)
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False
+    )
 
     class Meta:
         model = Album
@@ -581,6 +664,7 @@ class AdminVideoGalleryWriteSerializer(serializers.ModelSerializer):
             'seo_description_en',
             'display_order',
             'is_published',
+            'tags',
             'created_at',
             'updated_at',
         ]
@@ -742,6 +826,7 @@ class AdminVideoItemSerializer(serializers.ModelSerializer):
         source='album.title_bs', read_only=True, default=''
     )
     is_published = serializers.BooleanField(source='is_public', read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
         model = VideoClip
@@ -760,12 +845,13 @@ class AdminVideoItemSerializer(serializers.ModelSerializer):
             'duration_seconds',
             'status',
             'is_published',
+            'tags',
             'created_at',
             'updated_at',
         ]
 
 
-class AdminVideoItemWriteSerializer(serializers.ModelSerializer):
+class AdminVideoItemWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
     """Write serializer for updating video items (admin PATCH only).
 
     Maps incoming ``is_published`` to model ``is_public``.
@@ -778,6 +864,9 @@ class AdminVideoItemWriteSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     is_published = serializers.BooleanField(source='is_public', required=False)
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False
+    )
 
     class Meta:
         model = VideoClip
@@ -789,6 +878,7 @@ class AdminVideoItemWriteSerializer(serializers.ModelSerializer):
             'description_bs',
             'description_en',
             'is_published',
+            'tags',
             'cloudflare_uid',
             'cloudflare_thumbnail_url',
             'cloudflare_playback_url',
