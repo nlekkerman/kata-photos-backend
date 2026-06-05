@@ -1890,3 +1890,156 @@ class PublicAlbumVideosAPITests(TestCase):
             self.assertIn(field, item)
         for field in _HEAVY_CARD_FIELDS:
             self.assertNotIn(field, item)
+
+
+# ===========================================================================
+# Public album media endpoint (Phase 3B)
+# ===========================================================================
+
+_PUBLIC_ALBUM_MEDIA_URL = '/api/public/albums/{}/media/'
+
+
+class PublicAlbumMediaAPITests(TestCase):
+    """Phase 3B: GET /api/public/albums/<slug>/media/ — paginated public image media."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.album = _make_published_album(slug='alb-media-3b', gallery_type=Album.GALLERY_TYPE_IMAGE)
+        self.other_album = _make_published_album(slug='alb-media-other-3b', gallery_type=Album.GALLERY_TYPE_IMAGE)
+
+    def _results(self, resp):
+        if isinstance(resp.data, dict) and 'results' in resp.data:
+            return resp.data['results']
+        return resp.data
+
+    def _make_image(self, album=None, is_published=True, media_type='image', **kwargs):
+        return MediaItem.objects.create(
+            album=album or self.album,
+            is_published=is_published,
+            media_type=media_type,
+            **kwargs,
+        )
+
+    # 1. Anonymous user can list media for published image album.
+    def test_anonymous_can_list_album_media(self):
+        self._make_image(title_bs='Photo')
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+    # 2. Missing album returns 404.
+    def test_missing_album_returns_404(self):
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format('no-such-album'))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    # 3. Unpublished album returns 404.
+    def test_unpublished_album_returns_404(self):
+        unpub = Album.objects.create(slug='alb-unpub-3b', title_bs='Unpub', is_published=False)
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(unpub.slug))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    # 4. Only media from the requested album is returned.
+    def test_returns_only_media_from_album(self):
+        own = self._make_image(title_bs='Mine')
+        self._make_image(album=self.other_album, title_bs='Theirs')
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = [r['id'] for r in self._results(resp)]
+        self.assertIn(own.pk, ids)
+        self.assertEqual(len(ids), 1)
+
+    # 5. Only published media is returned.
+    def test_returns_only_published_media(self):
+        pub = self._make_image(is_published=True, title_bs='Pub')
+        self._make_image(is_published=False, title_bs='Hidden')
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = [r['id'] for r in self._results(resp)]
+        self.assertIn(pub.pk, ids)
+        self.assertEqual(len(ids), 1)
+
+    # 6. Unpublished media is excluded.
+    def test_unpublished_media_excluded(self):
+        self._make_image(is_published=False, title_bs='Draft')
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self._results(resp)), 0)
+
+    # 7. Non-image media is excluded.
+    def test_non_image_media_excluded(self):
+        self._make_image(media_type='video', title_bs='Vid')
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self._results(resp)), 0)
+
+    # 8. Response is paginated.
+    def test_response_is_paginated(self):
+        for i in range(14):
+            self._make_image(title_bs=f'Photo {i}', display_order=i)
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('results', resp.data)
+        self.assertIn('next', resp.data)
+
+    # 9. page_size is respected.
+    def test_page_size_respected(self):
+        for i in range(20):
+            self._make_image(title_bs=f'Photo {i}', display_order=i)
+        resp = self.client.get(f'{_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug)}?page_size=5')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self._results(resp)), 5)
+
+    # 10. page_size is capped at 50.
+    def test_page_size_capped_at_50(self):
+        for i in range(55):
+            self._make_image(title_bs=f'Photo {i}', display_order=i)
+        resp = self.client.get(f'{_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug)}?page_size=100')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertLessEqual(len(self._results(resp)), 50)
+
+    # 11. lang=bs resolves title/description/alt_text/caption correctly.
+    def test_lang_bs_resolves_fields(self):
+        MediaItem.objects.create(
+            album=self.album,
+            is_published=True,
+            media_type='image',
+            title_bs='Naslov BS',
+            title_en='Title EN',
+            description_bs='Opis BS',
+            alt_text_bs='Alt BS',
+            caption_bs='Potpis BS',
+        )
+        resp = self.client.get(f'{_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug)}?lang=bs')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        item = self._results(resp)[0]
+        self.assertEqual(item['title'], 'Naslov BS')
+        self.assertEqual(item['description'], 'Opis BS')
+        self.assertEqual(item['alt_text'], 'Alt BS')
+        self.assertEqual(item['caption'], 'Potpis BS')
+
+    # 12. Response does not expose raw bilingual fields.
+    def test_no_raw_bilingual_fields(self):
+        self._make_image(title_bs='Photo')
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        item = self._results(resp)[0]
+        for field in ['title_bs', 'title_en', 'description_bs', 'description_en',
+                      'alt_text_bs', 'alt_text_en', 'caption_bs', 'caption_en']:
+            self.assertNotIn(field, item)
+
+    # 13. Response does not include admin-only fields.
+    def test_no_admin_only_fields(self):
+        self._make_image(title_bs='Photo')
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        item = self._results(resp)[0]
+        for field in ['is_published', 'updated_at', 'provider_public_id', 'file_size']:
+            self.assertNotIn(field, item)
+
+    # 14. Response does not include a full nested album object.
+    def test_no_nested_album_object(self):
+        self._make_image(title_bs='Photo')
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        item = self._results(resp)[0]
+        self.assertNotIn('album', item)
+        self.assertIn('album_slug', item)

@@ -4,6 +4,7 @@ from .views import (
     HeroVideoView,
     PublicAlbumDetailView,
     PublicAlbumListView,
+    PublicAlbumMediaView,
     PublicAlbumVideosView,
     PublicVideoDetailView,
     PublicVideoListView,
@@ -20,4 +21,5 @@ urlpatterns = [
     path('albums/', PublicAlbumListView.as_view(), name='public-album-list'),
     path('albums/<slug:slug>/', PublicAlbumDetailView.as_view(), name='public-album-detail'),
     path('albums/<slug:slug>/videos/', PublicAlbumVideosView.as_view(), name='public-album-videos'),
+    path('albums/<slug:slug>/media/', PublicAlbumMediaView.as_view(), name='public-album-media'),
 ]

@@ -1207,3 +1207,36 @@ class PublicAlbumVideosView(LangContextMixin, generics.ListAPIView):
             status=VideoClip.STATUS_READY,
         ).select_related('album')
 
+
+class PublicAlbumMediaCursorPagination(CursorPagination):
+    """Stable cursor pagination for the public album image media list."""
+
+    page_size = 12
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+    ordering = ('display_order', 'id')
+
+
+class PublicAlbumMediaView(LangContextMixin, generics.ListAPIView):
+    """
+    GET /api/public/albums/<slug>/media/
+
+    Cursor-paginated list of published image media for a published album.
+    Returns 404 if the album does not exist or is not published.
+    Anonymous access allowed.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = MediaItemPublicSerializer
+    pagination_class = PublicAlbumMediaCursorPagination
+
+    def get_queryset(self):
+        album = generics.get_object_or_404(
+            Album, slug=self.kwargs['slug'], is_published=True
+        )
+        return MediaItem.objects.filter(
+            album=album,
+            is_published=True,
+            media_type='image',
+        ).select_related('album')
+
