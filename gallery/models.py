@@ -238,6 +238,16 @@ class VideoClip(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(
+                fields=['is_public', 'status', '-created_at', '-id'],
+                name='video_pub_status_created_idx',
+            ),
+            models.Index(
+                fields=['album', 'is_public', 'status', '-created_at', '-id'],
+                name='video_album_public_created_idx',
+            ),
+        ]
 
     def __str__(self):
         return self.title_bs or self.title_en or f'VideoClip {self.pk}'

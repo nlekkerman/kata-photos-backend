@@ -1267,3 +1267,273 @@ class VideoSearchCoverageTests(TestCase):
         uids = [v['cloudflare_uid'] for v in resp.data]
         # uid-ribe-video has no album, should not appear for album-title match
         self.assertNotIn('uid-ribe-video', uids)
+
+
+# ===========================================================================
+# Phase 1 — Public cursor-paginated video endpoints
+# ===========================================================================
+
+_PUBLIC_VIDEO_LIST_URL = '/api/public/videos/'
+_PUBLIC_VIDEO_DETAIL_URL = '/api/public/videos/{}/'
+
+_HEAVY_CARD_FIELDS = ['description_bs', 'description_en', 'title_bs', 'title_en',
+                      'updated_at', 'is_public', 'status']
+
+
+def _make_ready_video(**kwargs):
+    """Helper: create a public ready VideoClip with minimal required fields."""
+    defaults = {
+        'cloudflare_uid': f'uid-{VideoClip.objects.count()}-{id(kwargs)}',
+        'status': VideoClip.STATUS_READY,
+        'is_public': True,
+        'title_bs': 'Test Video BS',
+        'title_en': 'Test Video EN',
+    }
+    defaults.update(kwargs)
+    return VideoClip.objects.create(**defaults)
+
+
+class PublicVideoListAPITests(TestCase):
+    """Phase 1: GET /api/public/videos/ — cursor-paginated public video list."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.album = Album.objects.create(
+            slug='test-album', title_bs='Test Album BS', title_en='Test Album EN',
+        )
+        self.tag = Tag.objects.create(name_bs='Ptice', name_en='Birds', slug='ptice')
+
+    def _get_results(self, resp):
+        """Extract result items from either a paginated or plain list response."""
+        if isinstance(resp.data, dict) and 'results' in resp.data:
+            return resp.data['results']
+        return resp.data
+
+    # --- access ---
+
+    def test_anonymous_can_list_videos(self):
+        _make_ready_video()
+        resp = self.client.get(_PUBLIC_VIDEO_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+    # --- public/private filtering ---
+
+    def test_returns_only_public_ready_videos(self):
+        v_public = _make_ready_video(cloudflare_uid='uid-public')
+        _make_ready_video(cloudflare_uid='uid-private', is_public=False)
+        _make_ready_video(cloudflare_uid='uid-uploading', status=VideoClip.STATUS_UPLOADING)
+        _make_ready_video(cloudflare_uid='uid-processing', status=VideoClip.STATUS_PROCESSING)
+        _make_ready_video(cloudflare_uid='uid-failed', status=VideoClip.STATUS_FAILED)
+        resp = self.client.get(_PUBLIC_VIDEO_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        uids = [v['cloudflare_uid'] for v in results]
+        self.assertIn('uid-public', uids)
+        self.assertNotIn('uid-private', uids)
+        self.assertNotIn('uid-uploading', uids)
+        self.assertNotIn('uid-processing', uids)
+        self.assertNotIn('uid-failed', uids)
+
+    def test_excludes_private_videos(self):
+        _make_ready_video(cloudflare_uid='uid-priv', is_public=False)
+        resp = self.client.get(_PUBLIC_VIDEO_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        self.assertEqual(len(results), 0)
+
+    def test_excludes_non_ready_statuses(self):
+        for s, uid in [
+            (VideoClip.STATUS_UPLOADING, 'uid-up'),
+            (VideoClip.STATUS_PROCESSING, 'uid-proc'),
+            (VideoClip.STATUS_FAILED, 'uid-fail'),
+        ]:
+            _make_ready_video(cloudflare_uid=uid, status=s)
+        resp = self.client.get(_PUBLIC_VIDEO_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        self.assertEqual(len(results), 0)
+
+    # --- pagination ---
+
+    def test_response_is_paginated(self):
+        for i in range(14):
+            _make_ready_video(cloudflare_uid=f'uid-pag-{i}')
+        resp = self.client.get(_PUBLIC_VIDEO_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('results', resp.data)
+        self.assertIn('next', resp.data)
+
+    def test_page_size_respected(self):
+        for i in range(15):
+            _make_ready_video(cloudflare_uid=f'uid-sz-{i}')
+        resp = self.client.get(f'{_PUBLIC_VIDEO_LIST_URL}?page_size=5')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        self.assertEqual(len(results), 5)
+
+    def test_page_size_capped_at_max(self):
+        for i in range(55):
+            _make_ready_video(cloudflare_uid=f'uid-cap-{i}')
+        resp = self.client.get(f'{_PUBLIC_VIDEO_LIST_URL}?page_size=100')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        self.assertLessEqual(len(results), 50)
+
+    # --- filters ---
+
+    def test_album_filter(self):
+        v_in = _make_ready_video(cloudflare_uid='uid-in-album', album=self.album)
+        _make_ready_video(cloudflare_uid='uid-no-album')
+        resp = self.client.get(f'{_PUBLIC_VIDEO_LIST_URL}?album={self.album.pk}')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        uids = [v['cloudflare_uid'] for v in results]
+        self.assertIn('uid-in-album', uids)
+        self.assertNotIn('uid-no-album', uids)
+
+    def test_tag_filter(self):
+        v_tagged = _make_ready_video(cloudflare_uid='uid-tagged')
+        v_tagged.tags.add(self.tag)
+        _make_ready_video(cloudflare_uid='uid-untagged')
+        resp = self.client.get(f'{_PUBLIC_VIDEO_LIST_URL}?tag=ptice')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        uids = [v['cloudflare_uid'] for v in results]
+        self.assertIn('uid-tagged', uids)
+        self.assertNotIn('uid-untagged', uids)
+
+    def test_search_filter(self):
+        _make_ready_video(cloudflare_uid='uid-match', title_bs='Orlovi u planini')
+        _make_ready_video(cloudflare_uid='uid-nomatch', title_bs='Ribe u rijeci')
+        resp = self.client.get(f'{_PUBLIC_VIDEO_LIST_URL}?search=orlovi')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        uids = [v['cloudflare_uid'] for v in results]
+        self.assertIn('uid-match', uids)
+        self.assertNotIn('uid-nomatch', uids)
+
+    # --- language ---
+
+    def test_lang_bs_returns_bosnian_title(self):
+        _make_ready_video(
+            cloudflare_uid='uid-lang',
+            title_bs='Bosanski Naslov',
+            title_en='English Title',
+        )
+        resp = self.client.get(f'{_PUBLIC_VIDEO_LIST_URL}?lang=bs')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['title'], 'Bosanski Naslov')
+
+    def test_response_does_not_include_raw_title_fields(self):
+        _make_ready_video(cloudflare_uid='uid-fields')
+        resp = self.client.get(_PUBLIC_VIDEO_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        self.assertGreater(len(results), 0)
+        item = results[0]
+        for field in _HEAVY_CARD_FIELDS:
+            self.assertNotIn(field, item)
+
+    def test_response_includes_expected_card_fields(self):
+        _make_ready_video(cloudflare_uid='uid-fields2', album=self.album)
+        resp = self.client.get(_PUBLIC_VIDEO_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._get_results(resp)
+        item = results[0]
+        for field in ['id', 'title', 'album_id', 'album_title', 'cloudflare_uid',
+                      'cloudflare_thumbnail_url', 'duration_seconds', 'created_at']:
+            self.assertIn(field, item)
+
+
+class PublicVideoDetailAPITests(TestCase):
+    """Phase 1: GET /api/public/videos/<pk>/ — single public ready video detail."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.album = Album.objects.create(
+            slug='detail-album', title_bs='Detail Album BS', title_en='Detail Album EN',
+        )
+        self.tag = Tag.objects.create(name_bs='Medvjedi', name_en='Bears', slug='medvjedi')
+        self.video = _make_ready_video(
+            cloudflare_uid='uid-detail',
+            title_bs='Naslov na bosanskom',
+            title_en='Title in English',
+            description_bs='Opis na bosanskom',
+            description_en='Description in English',
+            album=self.album,
+        )
+        self.video.tags.add(self.tag)
+
+    # --- access ---
+
+    def test_anonymous_can_retrieve_public_ready_video(self):
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(self.video.pk))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+    def test_returns_404_for_private_video(self):
+        priv = _make_ready_video(cloudflare_uid='uid-priv-det', is_public=False)
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(priv.pk))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_returns_404_for_uploading_video(self):
+        v = _make_ready_video(cloudflare_uid='uid-up-det', status=VideoClip.STATUS_UPLOADING)
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(v.pk))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_returns_404_for_processing_video(self):
+        v = _make_ready_video(cloudflare_uid='uid-proc-det', status=VideoClip.STATUS_PROCESSING)
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(v.pk))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_returns_404_for_failed_video(self):
+        v = _make_ready_video(cloudflare_uid='uid-fail-det', status=VideoClip.STATUS_FAILED)
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(v.pk))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_returns_404_for_missing_video(self):
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(99999))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    # --- response shape ---
+
+    def test_detail_includes_expected_fields(self):
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(self.video.pk))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        for field in ['id', 'title', 'description', 'album_id', 'album_title',
+                      'cloudflare_uid', 'cloudflare_thumbnail_url',
+                      'cloudflare_playback_url', 'duration_seconds', 'tags', 'created_at']:
+            self.assertIn(field, resp.data)
+
+    def test_detail_does_not_include_admin_fields(self):
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(self.video.pk))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        for field in ['description_bs', 'description_en', 'title_bs', 'title_en',
+                      'updated_at', 'is_public', 'status']:
+            self.assertNotIn(field, resp.data)
+
+    def test_detail_lang_bs_returns_bosnian_title(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEO_DETAIL_URL.format(self.video.pk)}?lang=bs')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data['title'], 'Naslov na bosanskom')
+        self.assertEqual(resp.data['description'], 'Opis na bosanskom')
+
+    def test_detail_album_id_and_title_correct(self):
+        resp = self.client.get(f'{_PUBLIC_VIDEO_DETAIL_URL.format(self.video.pk)}?lang=bs')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data['album_id'], self.album.pk)
+        self.assertEqual(resp.data['album_title'], 'Detail Album BS')
+
+    def test_detail_tags_returned(self):
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(self.video.pk))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        tag_slugs = [t['slug'] for t in resp.data['tags']]
+        self.assertIn('medvjedi', tag_slugs)
+
+    def test_detail_video_without_album_returns_none_album_id(self):
+        v = _make_ready_video(cloudflare_uid='uid-noalbum-det', album=None)
+        resp = self.client.get(_PUBLIC_VIDEO_DETAIL_URL.format(v.pk))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIsNone(resp.data['album_id'])
+        self.assertEqual(resp.data['album_title'], '')

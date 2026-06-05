@@ -1070,3 +1070,92 @@ class VisitorMessageReplyRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError('This field may not be blank.')
         return value
 
+
+# ---------------------------------------------------------------------------
+# Public video card and detail serializers (Phase 1 — cursor-paginated list)
+# ---------------------------------------------------------------------------
+
+class PublicVideoCardSerializer(serializers.ModelSerializer):
+    """Thin read serializer for the public paginated video list.
+
+    Returns a resolved ``title`` (language-aware) and flat album fields.
+    Does NOT expose raw bilingual fields, admin-only fields, or heavy data.
+    """
+
+    title = serializers.SerializerMethodField()
+    album_id = serializers.SerializerMethodField()
+    album_title = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VideoClip
+        fields = [
+            'id',
+            'title',
+            'album_id',
+            'album_title',
+            'cloudflare_uid',
+            'cloudflare_thumbnail_url',
+            'duration_seconds',
+            'created_at',
+        ]
+
+    def get_title(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'title', lang)
+
+    def get_album_id(self, obj):
+        return obj.album_id
+
+    def get_album_title(self, obj):
+        if obj.album is None:
+            return ''
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj.album, 'title', lang) or obj.album.title
+
+
+class PublicVideoDetailSerializer(serializers.ModelSerializer):
+    """Serializer for the public video detail endpoint.
+
+    Returns a resolved ``title``, ``description``, flat album fields, and tags.
+    Does NOT expose admin-only or upload-only fields.
+    """
+
+    title = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    album_id = serializers.SerializerMethodField()
+    album_title = serializers.SerializerMethodField()
+    tags = TagSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = VideoClip
+        fields = [
+            'id',
+            'title',
+            'description',
+            'album_id',
+            'album_title',
+            'cloudflare_uid',
+            'cloudflare_thumbnail_url',
+            'cloudflare_playback_url',
+            'duration_seconds',
+            'tags',
+            'created_at',
+        ]
+
+    def get_title(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'title', lang)
+
+    def get_description(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'description', lang)
+
+    def get_album_id(self, obj):
+        return obj.album_id
+
+    def get_album_title(self, obj):
+        if obj.album is None:
+            return ''
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj.album, 'title', lang) or obj.album.title
+

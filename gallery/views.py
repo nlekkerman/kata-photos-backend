@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db.models import Count, Q
 from rest_framework import generics, status
 from rest_framework.exceptions import APIException
+from rest_framework.pagination import CursorPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
@@ -38,6 +39,8 @@ from .serializers import (
     HeroVideoSerializer,
     MediaItemPublicSerializer,
     MediaItemWriteSerializer,
+    PublicVideoCardSerializer,
+    PublicVideoDetailSerializer,
     TagSerializer,
     TagWriteSerializer,
     VideoClipDirectUploadRequestSerializer,
@@ -73,7 +76,7 @@ class AlbumListCreateView(LangContextMixin, generics.ListCreateAPIView):
     def get_queryset(self):
         if self.request.method == 'POST':
             return Album.objects.all()
-        qs = Album.objects.filter(is_published=True).prefetch_related('tags')
+        qs = Album.objects.filter(is_published=True).select_related('cover_media').prefetch_related('tags')
         tag_slug = self.request.query_params.get('tag')
         if tag_slug:
             qs = qs.filter(tags__slug=tag_slug).distinct()
@@ -108,7 +111,7 @@ class AlbumRetrieveUpdateDestroyView(LangContextMixin, generics.RetrieveUpdateDe
     def get_queryset(self):
         if self.request.method in ('PATCH', 'DELETE'):
             return Album.objects.all()
-        return Album.objects.filter(is_published=True)
+        return Album.objects.filter(is_published=True).select_related('cover_media').prefetch_related('tags')
 
 
 class AlbumMediaListCreateView(LangContextMixin, generics.ListCreateAPIView):
@@ -128,7 +131,7 @@ class AlbumMediaListCreateView(LangContextMixin, generics.ListCreateAPIView):
         album = generics.get_object_or_404(
             Album, slug=self.kwargs['slug'], is_published=True
         )
-        return MediaItem.objects.filter(album=album, is_published=True)
+        return MediaItem.objects.filter(album=album, is_published=True).select_related('album')
 
     def perform_create(self, serializer):
         album = generics.get_object_or_404(Album, slug=self.kwargs['slug'])
@@ -176,7 +179,7 @@ class FieldNoteListView(LangContextMixin, generics.ListAPIView):
     serializer_class = FieldNoteListSerializer
 
     def get_queryset(self):
-        return FieldNote.objects.filter(is_published=True)
+        return FieldNote.objects.filter(is_published=True).select_related('cover_image')
 
 
 class FieldNoteDetailView(LangContextMixin, generics.RetrieveAPIView):
@@ -184,7 +187,7 @@ class FieldNoteDetailView(LangContextMixin, generics.RetrieveAPIView):
     lookup_field = 'slug'
 
     def get_queryset(self):
-        return FieldNote.objects.filter(is_published=True)
+        return FieldNote.objects.filter(is_published=True).select_related('cover_image')
 
 
 class VideoClipDirectUploadView(generics.GenericAPIView):
@@ -616,7 +619,7 @@ class AdminVideoItemListView(generics.ListAPIView):
     serializer_class = AdminVideoItemSerializer
 
     def get_queryset(self):
-        qs = VideoClip.objects.select_related('album').all()
+        qs = VideoClip.objects.select_related('album').prefetch_related('tags').all()
         gallery_id = self.request.query_params.get('gallery')
         if gallery_id:
             qs = qs.filter(album_id=gallery_id)
@@ -1017,4 +1020,73 @@ class VisitorMessageReplyView(generics.GenericAPIView):
             {'detail': 'Reply sent.', 'replied_at': message.replied_at},
             status=status.HTTP_200_OK,
         )
+
+
+# ===========================================================================
+# Public cursor-paginated video endpoints (Phase 1)
+# ===========================================================================
+
+class PublicVideoCursorPagination(CursorPagination):
+    """Stable cursor pagination for the public video browse list."""
+
+    page_size = 12
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+    ordering = ('-created_at', '-id')
+
+
+class PublicVideoListView(LangContextMixin, generics.ListAPIView):
+    """
+    GET /api/public/videos/
+
+    Cursor-paginated list of public ready videos.
+    Supports ?album=, ?tag=, ?search=, ?lang=, ?page_size= query params.
+    Anonymous access allowed.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = PublicVideoCardSerializer
+    pagination_class = PublicVideoCursorPagination
+
+    def get_queryset(self):
+        qs = VideoClip.objects.filter(
+            is_public=True, status=VideoClip.STATUS_READY
+        ).select_related('album')
+
+        album_pk = self.request.query_params.get('album')
+        if album_pk:
+            qs = qs.filter(album_id=album_pk)
+
+        tag_slug = self.request.query_params.get('tag')
+        if tag_slug:
+            qs = qs.filter(tags__slug=tag_slug).distinct()
+
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(title_bs__icontains=search) |
+                Q(title_en__icontains=search) |
+                Q(description_bs__icontains=search) |
+                Q(description_en__icontains=search)
+            ).distinct()
+
+        return qs
+
+
+class PublicVideoDetailView(LangContextMixin, generics.RetrieveAPIView):
+    """
+    GET /api/public/videos/<pk>/
+
+    Returns a single public ready video with full detail.
+    Returns 404 for private, uploading, processing, failed, or missing videos.
+    Anonymous access allowed.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = PublicVideoDetailSerializer
+
+    def get_queryset(self):
+        return VideoClip.objects.filter(
+            is_public=True, status=VideoClip.STATUS_READY
+        ).select_related('album').prefetch_related('tags')
 
