@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VisitorMessage
 
 
 @admin.register(Tag)
@@ -134,3 +134,36 @@ class VideoClipAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+
+
+@admin.register(VisitorMessage)
+class VisitorMessageAdmin(admin.ModelAdmin):
+    list_display = ('sender_name', 'sender_email', 'subject', 'message_preview', 'video', 'timestamp_seconds', 'status', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('sender_name', 'sender_email', 'subject', 'message')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        ('Sender', {
+            'fields': ('sender_name', 'sender_email'),
+        }),
+        ('Message', {
+            'fields': ('subject', 'message'),
+        }),
+        ('Video Context', {
+            'fields': ('video', 'timestamp_seconds'),
+        }),
+        ('Status', {
+            'fields': ('status',),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    @admin.display(description='Preview')
+    def message_preview(self, obj):
+        if len(obj.message) > 50:
+            return obj.message[:50] + '...'
+        return obj.message

@@ -242,3 +242,43 @@ class VideoClip(models.Model):
     def __str__(self):
         return self.title_bs or self.title_en or f'VideoClip {self.pk}'
 
+
+class VisitorMessage(models.Model):
+    STATUS_NEW = 'new'
+    STATUS_READ = 'read'
+    STATUS_REPLIED = 'replied'
+    STATUS_ARCHIVED = 'archived'
+    STATUS_CHOICES = [
+        (STATUS_NEW, 'New'),
+        (STATUS_READ, 'Read'),
+        (STATUS_REPLIED, 'Replied'),
+        (STATUS_ARCHIVED, 'Archived'),
+    ]
+
+    sender_name = models.CharField(max_length=120)
+    sender_email = models.EmailField(max_length=254)
+    subject = models.CharField(max_length=180)
+    message = models.TextField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_NEW)
+    video = models.ForeignKey(
+        'VideoClip',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='visitor_messages',
+    )
+    timestamp_seconds = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['sender_email']),
+        ]
+
+    def __str__(self):
+        return f'{self.sender_name} — {self.subject}'
+

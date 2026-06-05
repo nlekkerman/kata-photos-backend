@@ -17,7 +17,7 @@ class CloudflareServiceError(APIException):
 
 logger = logging.getLogger(__name__)
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VisitorMessage
 from .serializers import (
     AdminImageGallerySerializer,
     AdminImageGalleryWriteSerializer,
@@ -42,6 +42,7 @@ from .serializers import (
     TagWriteSerializer,
     VideoClipDirectUploadRequestSerializer,
     VideoClipSerializer,
+    VisitorMessageCreateSerializer,
 )
 
 _ALLOWED_LANGS = ('en', 'bs')
@@ -887,4 +888,17 @@ class HeroVideoView(generics.GenericAPIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer(video)
         return Response(serializer.data)
+
+
+class VisitorMessageCreateView(generics.CreateAPIView):
+    """
+    POST /api/public/messages/
+
+    Public endpoint for submitting a visitor contact message.
+    Write-only: visitors cannot list or retrieve messages.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = VisitorMessageCreateSerializer
+    queryset = VisitorMessage.objects.none()
 

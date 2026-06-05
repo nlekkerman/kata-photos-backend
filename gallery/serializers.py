@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VisitorMessage
 
 # ---------------------------------------------------------------------------
 # Upload safety constants (Phase 6)
@@ -974,4 +974,50 @@ class HeroVideoSerializer(serializers.ModelSerializer):
         if obj.album is None:
             return ''
         return obj.album.title_en
+
+
+class VisitorMessageCreateSerializer(serializers.ModelSerializer):
+    """Write serializer for public visitor message submission."""
+
+    sender_name = serializers.CharField(max_length=120, allow_blank=False)
+    sender_email = serializers.EmailField(max_length=254)
+    subject = serializers.CharField(max_length=180, allow_blank=False)
+    message = serializers.CharField(allow_blank=False)
+    video_id = serializers.PrimaryKeyRelatedField(
+        queryset=VideoClip.objects.all(),
+        required=False,
+        allow_null=True,
+        source='video',
+    )
+    timestamp_seconds = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=0,
+    )
+
+    class Meta:
+        model = VisitorMessage
+        fields = [
+            'id', 'sender_name', 'sender_email', 'subject', 'message',
+            'video_id', 'timestamp_seconds', 'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+    def validate_sender_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('This field may not be blank.')
+        return value
+
+    def validate_subject(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('This field may not be blank.')
+        return value
+
+    def validate_message(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('This field may not be blank.')
+        return value
 
