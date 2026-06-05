@@ -23,10 +23,13 @@ Environment:
     CLOUDFLARE_IMAGES_API_TOKEN  — API token with Cloudflare Images write permissions
 """
 import json
+import logging
 import os
 import urllib.error
 import urllib.request
 import uuid
+
+logger = logging.getLogger(__name__)
 
 
 class CloudflareUploadError(Exception):
@@ -101,10 +104,17 @@ def upload_image(
             payload = json.loads(resp.read())
     except urllib.error.HTTPError as exc:
         error_body = exc.read().decode(errors="replace")
+        logger.error(
+            "Cloudflare Images API HTTP error: status=%s url=%s response_body=%r",
+            exc.code,
+            api_url,
+            error_body[:1000],
+        )
         raise CloudflareUploadError(
             f"Cloudflare Images API error (HTTP {exc.code})."
         ) from exc
     except OSError as exc:
+        logger.error("Cloudflare Images network error: url=%s exc=%r", api_url, exc)
         raise CloudflareUploadError(
             "Network error while reaching Cloudflare Images API."
         ) from exc
@@ -112,6 +122,11 @@ def upload_image(
     if not payload.get("success"):
         errors = payload.get("errors", [])
         codes = ", ".join(str(e.get("code", "")) for e in errors)
+        logger.error(
+            "Cloudflare Images API non-success: url=%s errors=%r",
+            api_url,
+            errors,
+        )
         raise CloudflareUploadError(
             f"Cloudflare Images upload failed (error codes: {codes})."
         )

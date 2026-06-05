@@ -898,6 +898,17 @@ class AdminVideoItemWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
             'updated_at',
         ]
 
+    def validate(self, data):
+        # Guard: a video must be in 'ready' status before it can be published.
+        wants_public = data.get('is_public')  # mapped from is_published via source='is_public'
+        if wants_public is True:
+            current_status = getattr(self.instance, 'status', None)
+            if current_status != VideoClip.STATUS_READY:
+                raise serializers.ValidationError(
+                    {'is_published': 'Video must be ready before it can be published.'}
+                )
+        return data
+
 
 class AdminVideoDirectUploadSerializer(serializers.Serializer):
     """Request body for POST /admin/videos/direct-upload/.

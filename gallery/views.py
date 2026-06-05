@@ -3,9 +3,11 @@ import logging
 
 from django.conf import settings
 from django.db.models import Count, Exists, OuterRef, Q
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import generics, status
 from rest_framework.exceptions import APIException
-from rest_framework.pagination import CursorPagination
+from rest_framework.pagination import CursorPagination, PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
@@ -17,6 +19,10 @@ class CloudflareServiceError(APIException):
     default_code = 'cloudflare_upload_error'
 
 logger = logging.getLogger(__name__)
+
+# TTL (seconds) for stable public read-only endpoints.
+# Does NOT apply to admin, auth, upload, status-refresh, or visitor-message endpoints.
+_PUBLIC_CACHE_TTL = 60
 
 from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage, VisitorMessageReply
 from .serializers import (
@@ -243,7 +249,7 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
             description_en=data.get('description_en', ''),
             cloudflare_uid=cf_result['uid'],
             status=VideoClip.STATUS_UPLOADING,
-            is_public=True,
+            is_public=False,
         )
 
         return Response(
@@ -365,6 +371,11 @@ class VideoClipSyncView(generics.GenericAPIView):
             video.status = new_status
             update_fields.append('status')
 
+        # Safety: failed videos must not remain publicly visible.
+        if new_status == VideoClip.STATUS_FAILED and video.is_public:
+            video.is_public = False
+            update_fields.append('is_public')
+
         raw_duration = cf.get('duration')
         if raw_duration is not None and raw_duration >= 0:
             new_duration = round(raw_duration)
@@ -438,6 +449,12 @@ def _save_media_item_with_cloudflare(serializer, *, album, extra_save_kwargs=Non
             api_token=cf_token,
         )
     except CloudflareUploadError as exc:
+        logger.error(
+            "Cloudflare Images upload error for album pk=%s filename=%r: %s",
+            album.pk,
+            uploaded_file.name,
+            exc,
+        )
         raise CloudflareServiceError(detail=str(exc))
 
     serializer.save(
@@ -519,23 +536,81 @@ class AdminImageGalleryRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyA
         serializer.save(gallery_type=Album.GALLERY_TYPE_IMAGE)
 
 
+class AdminImagePageNumberPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class AdminImageItemListCreateView(generics.ListCreateAPIView):
     """
-    GET  /api/gallery/admin/images/?gallery=<id>  — list images (admin, optionally filtered).
-    POST /api/gallery/admin/images/               — upload an image to an image gallery (admin).
+    GET  /api/gallery/admin/images/  — paginated, filtered image list (admin only).
+    POST /api/gallery/admin/images/  — upload an image to an image gallery (admin).
+
+    Supports (GET only):
+      ?page=<n>&page_size=<n>   — page-number pagination (default 50, max 100)
+      ?is_published=true|false  — filter by is_published
+      ?album=<pk>               — filter by album FK (also accepts legacy ?gallery=)
+      ?provider=<value>         — exact match on provider field
+      ?search=<query>           — icontains search across title, description,
+                                  alt_text, caption, provider_public_id,
+                                  and album title/slug
     """
 
     permission_classes = [IsAdminUser]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+    pagination_class = AdminImagePageNumberPagination
 
     def get_queryset(self):
-        qs = MediaItem.objects.filter(
-            media_type='image',
-            album__gallery_type=Album.GALLERY_TYPE_IMAGE,
-        ).select_related('album')
-        gallery_id = self.request.query_params.get('gallery')
-        if gallery_id:
-            qs = qs.filter(album_id=gallery_id)
+        qs = (
+            MediaItem.objects
+            .filter(
+                media_type='image',
+                album__gallery_type=Album.GALLERY_TYPE_IMAGE,
+            )
+            .select_related('album')
+            .order_by('display_order', 'id')
+        )
+
+        # album filter — ?album=<pk> (canonical) or legacy ?gallery=<pk>
+        album_pk = (
+            self.request.query_params.get('album')
+            or self.request.query_params.get('gallery')
+        )
+        if album_pk:
+            qs = qs.filter(album_id=album_pk)
+
+        # is_published filter
+        is_published_val = self.request.query_params.get('is_published', '').strip().lower()
+        if is_published_val in ('true', '1'):
+            qs = qs.filter(is_published=True)
+        elif is_published_val in ('false', '0'):
+            qs = qs.filter(is_published=False)
+
+        # provider filter — exact match; invalid value yields empty list
+        provider_val = self.request.query_params.get('provider', '').strip()
+        if provider_val:
+            qs = qs.filter(provider=provider_val)
+
+        # search filter
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(title_bs__icontains=search) |
+                Q(title_en__icontains=search) |
+                Q(title__icontains=search) |
+                Q(description_bs__icontains=search) |
+                Q(description_en__icontains=search) |
+                Q(alt_text_bs__icontains=search) |
+                Q(alt_text_en__icontains=search) |
+                Q(caption_bs__icontains=search) |
+                Q(caption_en__icontains=search) |
+                Q(provider_public_id__icontains=search) |
+                Q(album__title_bs__icontains=search) |
+                Q(album__title_en__icontains=search) |
+                Q(album__slug__icontains=search)
+            )
+
         return qs
 
     def get_serializer_class(self):
@@ -612,19 +687,74 @@ class AdminVideoGalleryRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyA
         serializer.save(gallery_type=Album.GALLERY_TYPE_VIDEO)
 
 
+class AdminVideoPageNumberPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class AdminVideoItemListView(generics.ListAPIView):
     """
-    GET /api/gallery/admin/videos/?gallery=<id>  — list videos for admin (all statuses).
+    GET /api/gallery/admin/videos/  — paginated, filtered video list (admin only).
+
+    Supports:
+      ?page=<n>&page_size=<n>   — page-number pagination (default 50, max 100)
+      ?status=<value>           — exact match on VideoClip.status
+      ?is_published=true|false  — filter by is_public (admin naming: is_published)
+      ?album=<pk>               — filter by album FK (also accepts legacy ?gallery=)
+      ?search=<query>           — icontains search across title, description,
+                                  cloudflare_uid, album title/slug, and tags
     """
 
     permission_classes = [IsAdminUser]
     serializer_class = AdminVideoItemSerializer
+    pagination_class = AdminVideoPageNumberPagination
 
     def get_queryset(self):
-        qs = VideoClip.objects.select_related('album').prefetch_related('tags').all()
-        gallery_id = self.request.query_params.get('gallery')
-        if gallery_id:
-            qs = qs.filter(album_id=gallery_id)
+        qs = (
+            VideoClip.objects
+            .select_related('album')
+            .prefetch_related('tags')
+            .order_by('-created_at', '-id')
+        )
+
+        # album filter — ?album=<pk> (new) or legacy ?gallery=<pk>
+        album_pk = (
+            self.request.query_params.get('album')
+            or self.request.query_params.get('gallery')
+        )
+        if album_pk:
+            qs = qs.filter(album_id=album_pk)
+
+        # status filter — exact match; invalid value yields empty list
+        status_val = self.request.query_params.get('status', '').strip()
+        if status_val:
+            qs = qs.filter(status=status_val)
+
+        # is_published filter — maps to model is_public
+        is_published_val = self.request.query_params.get('is_published', '').strip().lower()
+        if is_published_val in ('true', '1'):
+            qs = qs.filter(is_public=True)
+        elif is_published_val in ('false', '0'):
+            qs = qs.filter(is_public=False)
+
+        # search filter
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(title_bs__icontains=search) |
+                Q(title_en__icontains=search) |
+                Q(description_bs__icontains=search) |
+                Q(description_en__icontains=search) |
+                Q(cloudflare_uid__icontains=search) |
+                Q(album__title_bs__icontains=search) |
+                Q(album__title_en__icontains=search) |
+                Q(album__slug__icontains=search) |
+                Q(tags__name_bs__icontains=search) |
+                Q(tags__name_en__icontains=search) |
+                Q(tags__slug__icontains=search)
+            ).distinct()
+
         return qs
 
 
@@ -685,7 +815,7 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
             description_en=data.get('description_en', ''),
             cloudflare_uid=cf_result['uid'],
             status=VideoClip.STATUS_UPLOADING,
-            is_public=True,
+            is_public=False,
         )
 
         return Response(
@@ -805,6 +935,11 @@ class AdminVideoRefreshStatusView(generics.GenericAPIView):
             video.status = new_status
             update_fields.append('status')
 
+        # Safety: failed videos must not remain publicly visible.
+        if new_status == VideoClip.STATUS_FAILED and video.is_public:
+            video.is_public = False
+            update_fields.append('is_public')
+
         raw_duration = cf.get('duration')
         if raw_duration is not None and raw_duration >= 0:
             new_duration = round(raw_duration)
@@ -873,12 +1008,13 @@ class AdminTagRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 # Public hero-video endpoint
 # ===========================================================================
 
+@method_decorator(cache_page(_PUBLIC_CACHE_TTL), name='dispatch')
 class HeroVideoView(generics.GenericAPIView):
     """
     GET /api/public/hero-video/
 
     Returns the latest published, ready VideoClip for the landing-page hero section.
-    No authentication required.
+    No authentication required. Response is cached for _PUBLIC_CACHE_TTL seconds.
     """
 
     permission_classes = [AllowAny]
@@ -911,10 +1047,20 @@ class VisitorMessageCreateView(generics.CreateAPIView):
     queryset = VisitorMessage.objects.none()
 
 
+class PublicCommentCursorPagination(CursorPagination):
+    """Stable cursor pagination for public approved video timestamp comments."""
+
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+    ordering = ('timestamp_seconds', 'id')
+
+
 class VideoTimestampCommentListCreateView(generics.ListCreateAPIView):
     """
     GET  /api/public/videos/<video_pk>/comments/
         Returns approved comments for the given video ordered by timestamp.
+        Cursor-paginated (default 20, max 100). Anonymous access allowed.
 
     POST /api/public/videos/<video_pk>/comments/
         Submit a new comment; saved with status=pending for admin review.
@@ -922,6 +1068,7 @@ class VideoTimestampCommentListCreateView(generics.ListCreateAPIView):
     """
 
     permission_classes = [AllowAny]
+    pagination_class = PublicCommentCursorPagination
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -1106,13 +1253,14 @@ class PublicAlbumCursorPagination(CursorPagination):
     ordering = ('display_order', 'id')
 
 
+@method_decorator(cache_page(_PUBLIC_CACHE_TTL), name='dispatch')
 class PublicAlbumListView(LangContextMixin, generics.ListAPIView):
     """
     GET /api/public/albums/
 
     Cursor-paginated list of published albums.
     Supports ?type=, ?tag=, ?search=, ?populated=, ?lang=, ?page_size= params.
-    Anonymous access allowed.
+    Anonymous access allowed. Responses are cached per URL for _PUBLIC_CACHE_TTL seconds.
     """
 
     permission_classes = [AllowAny]

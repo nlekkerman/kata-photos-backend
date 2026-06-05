@@ -10,7 +10,7 @@ from PIL import Image
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from .models import Album, MediaItem, Tag, VideoClip
+from .models import Album, MediaItem, Tag, VideoClip, VideoTimestampComment
 
 ALBUMS_URL = '/api/gallery/albums/'
 
@@ -411,7 +411,7 @@ class VideoClipDirectUploadWatermarkTests(TestCase):
         clip = VideoClip.objects.get()
         self.assertEqual(clip.cloudflare_uid, 'abc123uid')
         self.assertEqual(clip.status, VideoClip.STATUS_UPLOADING)
-        self.assertTrue(clip.is_public)
+        self.assertFalse(clip.is_public)  # Phase 5A: new uploads must be private
 
     @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
     def test_response_includes_upload_url(self, mock_upload):
@@ -1571,7 +1571,13 @@ class PublicAlbumListAPITests(TestCase):
     """Phase 3A: GET /api/public/albums/ — cursor-paginated public album list."""
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.client = APIClient()
+
+    def tearDown(self):
+        from django.core.cache import cache
+        cache.clear()
 
     def _results(self, resp):
         if isinstance(resp.data, dict) and 'results' in resp.data:
@@ -2043,3 +2049,917 @@ class PublicAlbumMediaAPITests(TestCase):
         item = self._results(resp)[0]
         self.assertNotIn('album', item)
         self.assertIn('album_slug', item)
+
+
+# ===========================================================================
+# Admin video list pagination & filter tests — Phase 4A
+# ===========================================================================
+
+_ADMIN_VIDEOS_URL = '/api/gallery/admin/videos/'
+
+
+class AdminVideoItemListAPITests(TestCase):
+    """
+    Tests for GET /api/gallery/admin/videos/ pagination and filters.
+    Phase 4A: page-number pagination, status / is_published / album / search filters.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(username='avstaff', password='pass', is_staff=True)
+        self.user = User.objects.create_user(username='avuser', password='pass', is_staff=False)
+        self.album = Album.objects.create(
+            slug='vid-gallery', title_bs='Video Gallery',
+            gallery_type=Album.GALLERY_TYPE_VIDEO,
+        )
+
+    def _make_video(self, **kwargs):
+        import uuid
+        defaults = {
+            'title_bs': 'Test Video',
+            'cloudflare_uid': uuid.uuid4().hex[:20],
+            'status': VideoClip.STATUS_READY,
+            'is_public': True,
+        }
+        defaults.update(kwargs)
+        return VideoClip.objects.create(**defaults)
+
+    # 1. Anonymous user cannot access admin video list.
+    def test_anonymous_cannot_access(self):
+        resp = self.client.get(_ADMIN_VIDEOS_URL)
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+    # 2. Non-staff authenticated user cannot access.
+    def test_non_staff_cannot_access(self):
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.get(_ADMIN_VIDEOS_URL)
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+    # 3. Staff user can access.
+    def test_staff_can_access(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(_ADMIN_VIDEOS_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+    # 4. Response is paginated (has count / next / previous / results).
+    def test_response_is_paginated(self):
+        self._make_video()
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(_ADMIN_VIDEOS_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('count', resp.data)
+        self.assertIn('results', resp.data)
+        self.assertIn('next', resp.data)
+        self.assertIn('previous', resp.data)
+
+    # 5. Default page_size is 50 — 55 videos → 50 on page 1 with next link.
+    def test_default_page_size_is_fifty(self):
+        for _ in range(55):
+            self._make_video()
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(_ADMIN_VIDEOS_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 50)
+        self.assertIsNotNone(resp.data['next'])
+
+    # 6. page_size is respected.
+    def test_page_size_respected(self):
+        for _ in range(5):
+            self._make_video()
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?page_size=2')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 2)
+        self.assertEqual(resp.data['count'], 5)
+
+    # 7. page_size is capped at 100.
+    def test_page_size_capped_at_100(self):
+        for _ in range(110):
+            self._make_video()
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?page_size=200')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 100)
+
+    # 8. status=ready filters correctly.
+    def test_status_ready_filter(self):
+        self._make_video(cloudflare_uid='uid-s-ready', status=VideoClip.STATUS_READY)
+        self._make_video(cloudflare_uid='uid-s-proc', status=VideoClip.STATUS_PROCESSING)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?status=ready')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('uid-s-ready', uids)
+        self.assertNotIn('uid-s-proc', uids)
+
+    # 9. status=processing filters correctly (non-ready status).
+    def test_status_processing_filter(self):
+        self._make_video(cloudflare_uid='uid-p-ready', status=VideoClip.STATUS_READY)
+        self._make_video(cloudflare_uid='uid-p-proc', status=VideoClip.STATUS_PROCESSING)
+        self._make_video(cloudflare_uid='uid-p-fail', status=VideoClip.STATUS_FAILED)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?status=processing')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('uid-p-proc', uids)
+        self.assertNotIn('uid-p-ready', uids)
+        self.assertNotIn('uid-p-fail', uids)
+
+    # 10. is_published=true filters correctly.
+    def test_is_published_true_filter(self):
+        self._make_video(cloudflare_uid='uid-pub', is_public=True)
+        self._make_video(cloudflare_uid='uid-priv', is_public=False)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?is_published=true')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('uid-pub', uids)
+        self.assertNotIn('uid-priv', uids)
+
+    # 11. is_published=false filters correctly.
+    def test_is_published_false_filter(self):
+        self._make_video(cloudflare_uid='uid-pub2', is_public=True)
+        self._make_video(cloudflare_uid='uid-priv2', is_public=False)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?is_published=false')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('uid-priv2', uids)
+        self.assertNotIn('uid-pub2', uids)
+
+    # 12. album= filters correctly.
+    def test_album_filter(self):
+        other = Album.objects.create(
+            slug='other-vg', title_bs='Other Gallery',
+            gallery_type=Album.GALLERY_TYPE_VIDEO,
+        )
+        self._make_video(cloudflare_uid='uid-alb1', album=self.album)
+        self._make_video(cloudflare_uid='uid-alb2', album=other)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?album={self.album.pk}')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('uid-alb1', uids)
+        self.assertNotIn('uid-alb2', uids)
+
+    # 13. search= filters by video title.
+    def test_search_by_title(self):
+        self._make_video(cloudflare_uid='uid-t1', title_bs='Orlovi u letu')
+        self._make_video(cloudflare_uid='uid-t2', title_bs='Ribe na rijeci')
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?search=orlovi')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('uid-t1', uids)
+        self.assertNotIn('uid-t2', uids)
+
+    # 14. search= filters by album title.
+    def test_search_by_album_title(self):
+        self._make_video(cloudflare_uid='uid-at1', title_bs='Video A', album=self.album)
+        self._make_video(cloudflare_uid='uid-at2', title_bs='Video B', album=None)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?search=Video+Gallery')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('uid-at1', uids)
+        self.assertNotIn('uid-at2', uids)
+
+    # 15. search= filters by tag name.
+    def test_search_by_tag(self):
+        tag = Tag.objects.create(name_bs='Sokolovi', slug='sokolovi')
+        v1 = self._make_video(cloudflare_uid='uid-tg1', title_bs='Video X')
+        v1.tags.add(tag)
+        self._make_video(cloudflare_uid='uid-tg2', title_bs='Video Y')
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?search=Sokolovi')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('uid-tg1', uids)
+        self.assertNotIn('uid-tg2', uids)
+
+    # 16. Pagination and filters work together.
+    def test_pagination_and_filter_combined(self):
+        for i in range(5):
+            self._make_video(status=VideoClip.STATUS_READY)
+        for i in range(3):
+            self._make_video(status=VideoClip.STATUS_PROCESSING)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?status=ready&page_size=2')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 2)
+        self.assertEqual(resp.data['count'], 5)
+
+    # 17. Legacy ?gallery= filter still works.
+    def test_legacy_gallery_filter_still_works(self):
+        other = Album.objects.create(
+            slug='other-vg2', title_bs='Other Gallery 2',
+            gallery_type=Album.GALLERY_TYPE_VIDEO,
+        )
+        self._make_video(cloudflare_uid='uid-lg1', album=self.album)
+        self._make_video(cloudflare_uid='uid-lg2', album=other)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_VIDEOS_URL}?gallery={self.album.pk}')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('uid-lg1', uids)
+        self.assertNotIn('uid-lg2', uids)
+
+
+# ===========================================================================
+# Admin image list pagination & filter tests — Phase 4C
+# ===========================================================================
+
+_ADMIN_IMAGES_URL = '/api/gallery/admin/images/'
+
+
+class AdminImageItemListAPITests(TestCase):
+    """
+    Tests for GET /api/gallery/admin/images/ pagination and filters.
+    Phase 4C: page-number pagination, is_published / album / provider / search filters.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(username='aiststaff', password='pass', is_staff=True)
+        self.user = User.objects.create_user(username='aistuser', password='pass', is_staff=False)
+        self.album = Album.objects.create(
+            slug='img-gallery', title_bs='Image Gallery',
+            gallery_type=Album.GALLERY_TYPE_IMAGE,
+        )
+
+    def _make_image_item(self, **kwargs):
+        defaults = {
+            'album': self.album,
+            'media_type': 'image',
+            'title_bs': 'Test Image',
+            'is_published': True,
+            'provider': 'local',
+        }
+        defaults.update(kwargs)
+        return MediaItem.objects.create(**defaults)
+
+    # 1. Anonymous user cannot access admin image list.
+    def test_anonymous_cannot_access(self):
+        resp = self.client.get(_ADMIN_IMAGES_URL)
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+    # 2. Non-staff authenticated user cannot access.
+    def test_non_staff_cannot_access(self):
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.get(_ADMIN_IMAGES_URL)
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+    # 3. Staff user can access.
+    def test_staff_can_access(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(_ADMIN_IMAGES_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+    # 4. Response is paginated (has count / next / previous / results).
+    def test_response_is_paginated(self):
+        self._make_image_item()
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(_ADMIN_IMAGES_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('count', resp.data)
+        self.assertIn('results', resp.data)
+        self.assertIn('next', resp.data)
+        self.assertIn('previous', resp.data)
+
+    # 5. Default page_size is 50 — 55 images → 50 on page 1 with next link.
+    def test_default_page_size_is_fifty(self):
+        for _ in range(55):
+            self._make_image_item()
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(_ADMIN_IMAGES_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 50)
+        self.assertIsNotNone(resp.data['next'])
+
+    # 6. page_size is respected.
+    def test_page_size_respected(self):
+        for _ in range(5):
+            self._make_image_item()
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?page_size=2')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 2)
+        self.assertEqual(resp.data['count'], 5)
+
+    # 7. page_size is capped at 100.
+    def test_page_size_capped_at_100(self):
+        for _ in range(110):
+            self._make_image_item()
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?page_size=200')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 100)
+
+    # 8. Endpoint returns only image media (not videos or other types).
+    def test_returns_only_image_media(self):
+        video_album = Album.objects.create(
+            slug='vid-gal-4c', title_bs='Video Gallery 4C',
+            gallery_type=Album.GALLERY_TYPE_VIDEO,
+        )
+        self._make_image_item(title_bs='My Image')
+        MediaItem.objects.create(
+            album=video_album,
+            media_type='video',
+            title_bs='My Video',
+        )
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(_ADMIN_IMAGES_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        types = [item.get('media_type') for item in resp.data['results']]
+        # All returned items must be images (serializer may not expose media_type,
+        # so verify count: only image item is returned, not the video item)
+        self.assertEqual(resp.data['count'], 1)
+
+    # 9. is_published=true filters correctly.
+    def test_is_published_true_filter(self):
+        self._make_image_item(title_bs='Published Image', is_published=True)
+        self._make_image_item(title_bs='Draft Image', is_published=False)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?is_published=true')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        titles = [item['title_bs'] for item in resp.data['results']]
+        self.assertIn('Published Image', titles)
+        self.assertNotIn('Draft Image', titles)
+
+    # 10. is_published=false filters correctly.
+    def test_is_published_false_filter(self):
+        self._make_image_item(title_bs='Published Image 2', is_published=True)
+        self._make_image_item(title_bs='Draft Image 2', is_published=False)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?is_published=false')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        titles = [item['title_bs'] for item in resp.data['results']]
+        self.assertIn('Draft Image 2', titles)
+        self.assertNotIn('Published Image 2', titles)
+
+    # 11. album= filters correctly.
+    def test_album_filter(self):
+        other = Album.objects.create(
+            slug='other-ig', title_bs='Other Image Gallery',
+            gallery_type=Album.GALLERY_TYPE_IMAGE,
+        )
+        self._make_image_item(title_bs='Album1 Image', album=self.album)
+        self._make_image_item(title_bs='Album2 Image', album=other)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?album={self.album.pk}')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        titles = [item['title_bs'] for item in resp.data['results']]
+        self.assertIn('Album1 Image', titles)
+        self.assertNotIn('Album2 Image', titles)
+
+    # 12. Legacy gallery= filter still works.
+    def test_legacy_gallery_filter(self):
+        other = Album.objects.create(
+            slug='other-ig2', title_bs='Other Image Gallery 2',
+            gallery_type=Album.GALLERY_TYPE_IMAGE,
+        )
+        self._make_image_item(title_bs='Gallery1 Image', album=self.album)
+        self._make_image_item(title_bs='Gallery2 Image', album=other)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?gallery={self.album.pk}')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        titles = [item['title_bs'] for item in resp.data['results']]
+        self.assertIn('Gallery1 Image', titles)
+        self.assertNotIn('Gallery2 Image', titles)
+
+    # 13. provider= filters correctly.
+    def test_provider_filter(self):
+        self._make_image_item(title_bs='Local Image', provider='local')
+        self._make_image_item(title_bs='Cloudflare Image', provider='cloudflare_images')
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?provider=local')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        titles = [item['title_bs'] for item in resp.data['results']]
+        self.assertIn('Local Image', titles)
+        self.assertNotIn('Cloudflare Image', titles)
+
+    # 14. search= filters by media title.
+    def test_search_by_title(self):
+        self._make_image_item(title_bs='Planine u magli')
+        self._make_image_item(title_bs='Rijeka u proljeće')
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?search=planine')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        titles = [item['title_bs'] for item in resp.data['results']]
+        self.assertIn('Planine u magli', titles)
+        self.assertNotIn('Rijeka u proljeće', titles)
+
+    # 15. search= filters by album title and slug.
+    def test_search_by_album_title(self):
+        other = Album.objects.create(
+            slug='nature-shots', title_bs='Nature Shots',
+            gallery_type=Album.GALLERY_TYPE_IMAGE,
+        )
+        self._make_image_item(title_bs='Image A', album=self.album)
+        self._make_image_item(title_bs='Image B', album=other)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?search=Nature+Shots')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        titles = [item['title_bs'] for item in resp.data['results']]
+        self.assertIn('Image B', titles)
+        self.assertNotIn('Image A', titles)
+
+    # 16. Pagination and filters work together.
+    def test_pagination_and_filter_combined(self):
+        for _ in range(5):
+            self._make_image_item(is_published=True)
+        for _ in range(3):
+            self._make_image_item(is_published=False)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?is_published=true&page_size=2')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 2)
+        self.assertEqual(resp.data['count'], 5)
+
+    # 17. Invalid is_published value is silently ignored (no filter applied).
+    def test_invalid_is_published_ignored(self):
+        self._make_image_item(is_published=True)
+        self._make_image_item(is_published=False)
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(f'{_ADMIN_IMAGES_URL}?is_published=maybe')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        # Both items returned — invalid value is ignored
+        self.assertEqual(resp.data['count'], 2)
+
+
+# ===========================================================================
+# Phase 5A — Upload lifecycle safety tests
+# ===========================================================================
+
+_ADMIN_VIDEO_DIRECT_UPLOAD_URL = '/api/gallery/admin/videos/direct-upload/'
+_ADMIN_VIDEO_COMPLETE_UPLOAD_URL = '/api/gallery/admin/videos/complete-upload/'
+_ADMIN_VIDEO_DETAIL_URL = '/api/gallery/admin/videos/{}/'
+_ADMIN_VIDEO_REFRESH_STATUS_URL = '/api/gallery/admin/videos/{}/refresh-status/'
+
+_LIFECYCLE_CF_RESULT = {
+    "uid": "lifecycle-cf-uid-001",
+    "upload_url": "https://upload.videodelivery.net/tus/lifecycle-cf-uid-001",
+}
+_CF_READY_RESPONSE = {
+    "readyToStream": True,
+    "duration": 120.0,
+    "status": {"state": "ready"},
+}
+_CF_FAILED_RESPONSE = {
+    "readyToStream": False,
+    "duration": -1,
+    "status": {"state": "error"},
+}
+
+
+@override_settings(
+    CLOUDFLARE_ACCOUNT_ID="test_account",
+    CLOUDFLARE_STREAM_API_TOKEN="test_token",
+    CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN="customer-test.cloudflarestream.com",
+    CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS=3600,
+    CLOUDFLARE_STREAM_WATERMARK_UID="",
+)
+class AdminUploadLifecycleSafetyTests(TestCase):
+    """Phase 5A: Upload lifecycle safety — admin video endpoint safety rules."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(
+            username='lc_staff', password='pass', is_staff=True
+        )
+        self.client.force_authenticate(user=self.staff)
+
+    def _make_video(self, **kwargs):
+        """Create a VideoClip with safe defaults, overridden by kwargs."""
+        defaults = {
+            'title_bs': 'Lifecycle Video',
+            'cloudflare_uid': f'lc-uid-{VideoClip.objects.count()}',
+            'status': VideoClip.STATUS_UPLOADING,
+            'is_public': False,
+        }
+        defaults.update(kwargs)
+        return VideoClip.objects.create(**defaults)
+
+    # ---- Rule 1: New direct uploads must be private ----
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload',
+           return_value=_LIFECYCLE_CF_RESULT)
+    def test_admin_direct_upload_creates_video_with_status_uploading(self, mock_upload):
+        """Test 1: Admin direct upload creates VideoClip with status=uploading."""
+        resp = self.client.post(
+            _ADMIN_VIDEO_DIRECT_UPLOAD_URL,
+            {'title_bs': 'Novi Video', 'max_duration_seconds': 60},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        video = VideoClip.objects.get(cloudflare_uid='lifecycle-cf-uid-001')
+        self.assertEqual(video.status, VideoClip.STATUS_UPLOADING)
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload',
+           return_value=_LIFECYCLE_CF_RESULT)
+    def test_admin_direct_upload_creates_video_with_is_public_false(self, mock_upload):
+        """Test 2: Admin direct upload creates VideoClip with is_public=False."""
+        resp = self.client.post(
+            _ADMIN_VIDEO_DIRECT_UPLOAD_URL,
+            {'title_bs': 'Novi Video', 'max_duration_seconds': 60},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        video = VideoClip.objects.get(cloudflare_uid='lifecycle-cf-uid-001')
+        self.assertFalse(video.is_public)
+
+    # ---- Rule 2: Complete upload moves to processing, never publishes ----
+
+    def test_complete_upload_moves_status_to_processing(self):
+        """Test 3: Complete upload transitions status from uploading to processing."""
+        video = self._make_video(status=VideoClip.STATUS_UPLOADING)
+        resp = self.client.post(
+            _ADMIN_VIDEO_COMPLETE_UPLOAD_URL,
+            {'video_id': video.pk},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        video.refresh_from_db()
+        self.assertEqual(video.status, VideoClip.STATUS_PROCESSING)
+
+    def test_complete_upload_does_not_set_is_public_true(self):
+        """Test 4: Complete upload never sets is_public=True."""
+        video = self._make_video(status=VideoClip.STATUS_UPLOADING, is_public=False)
+        self.client.post(
+            _ADMIN_VIDEO_COMPLETE_UPLOAD_URL,
+            {'video_id': video.pk},
+            format='json',
+        )
+        video.refresh_from_db()
+        self.assertFalse(video.is_public)
+
+    # ---- Rule 3: Refresh status to ready ----
+
+    @patch('gallery.services.cloudflare_stream.get_video_details',
+           return_value=_CF_READY_RESPONSE)
+    def test_refresh_status_ready_updates_status(self, mock_get):
+        """Test 5: Refresh status when Cloudflare is ready sets status=ready."""
+        video = self._make_video(status=VideoClip.STATUS_PROCESSING)
+        resp = self.client.post(
+            _ADMIN_VIDEO_REFRESH_STATUS_URL.format(video.pk),
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        video.refresh_from_db()
+        self.assertEqual(video.status, VideoClip.STATUS_READY)
+
+    @patch('gallery.services.cloudflare_stream.get_video_details',
+           return_value=_CF_READY_RESPONSE)
+    def test_refresh_status_ready_does_not_auto_publish(self, mock_get):
+        """Test 6: Refresh to ready does not automatically set is_public=True."""
+        video = self._make_video(status=VideoClip.STATUS_PROCESSING, is_public=False)
+        self.client.post(
+            _ADMIN_VIDEO_REFRESH_STATUS_URL.format(video.pk),
+            format='json',
+        )
+        video.refresh_from_db()
+        self.assertFalse(video.is_public)
+
+    # ---- Rule 3: Refresh status to failed ----
+
+    @patch('gallery.services.cloudflare_stream.get_video_details',
+           return_value=_CF_FAILED_RESPONSE)
+    def test_refresh_status_failed_sets_status_failed(self, mock_get):
+        """Test 7: Refresh when Cloudflare reports error sets status=failed."""
+        video = self._make_video(status=VideoClip.STATUS_PROCESSING)
+        resp = self.client.post(
+            _ADMIN_VIDEO_REFRESH_STATUS_URL.format(video.pk),
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        video.refresh_from_db()
+        self.assertEqual(video.status, VideoClip.STATUS_FAILED)
+
+    @patch('gallery.services.cloudflare_stream.get_video_details',
+           return_value=_CF_FAILED_RESPONSE)
+    def test_refresh_status_failed_forces_is_public_false(self, mock_get):
+        """Test 8: Refresh to failed forces is_public=False even if previously public."""
+        video = self._make_video(status=VideoClip.STATUS_PROCESSING, is_public=True)
+        self.client.post(
+            _ADMIN_VIDEO_REFRESH_STATUS_URL.format(video.pk),
+            format='json',
+        )
+        video.refresh_from_db()
+        self.assertFalse(video.is_public)
+
+    # ---- Rule 4: Admin publish guard ----
+
+    def test_admin_cannot_publish_video_while_uploading(self):
+        """Test 9: Admin PATCH is_published=True rejected when status=uploading."""
+        video = self._make_video(status=VideoClip.STATUS_UPLOADING)
+        resp = self.client.patch(
+            _ADMIN_VIDEO_DETAIL_URL.format(video.pk),
+            {'is_published': True},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('is_published', resp.data)
+        video.refresh_from_db()
+        self.assertFalse(video.is_public)
+
+    def test_admin_cannot_publish_video_while_processing(self):
+        """Test 10: Admin PATCH is_published=True rejected when status=processing."""
+        video = self._make_video(status=VideoClip.STATUS_PROCESSING)
+        resp = self.client.patch(
+            _ADMIN_VIDEO_DETAIL_URL.format(video.pk),
+            {'is_published': True},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('is_published', resp.data)
+
+    def test_admin_cannot_publish_video_while_failed(self):
+        """Test 11: Admin PATCH is_published=True rejected when status=failed."""
+        video = self._make_video(status=VideoClip.STATUS_FAILED)
+        resp = self.client.patch(
+            _ADMIN_VIDEO_DETAIL_URL.format(video.pk),
+            {'is_published': True},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('is_published', resp.data)
+
+    def test_admin_can_publish_video_when_ready(self):
+        """Test 12: Admin PATCH is_published=True accepted when status=ready."""
+        video = self._make_video(status=VideoClip.STATUS_READY, is_public=False)
+        resp = self.client.patch(
+            _ADMIN_VIDEO_DETAIL_URL.format(video.pk),
+            {'is_published': True},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        video.refresh_from_db()
+        self.assertTrue(video.is_public)
+
+    # ---- Rule 5: Public endpoints remain unchanged ----
+
+    def test_public_list_excludes_non_ready_and_private_videos(self):
+        """Test 13: Public /api/public/videos/ only returns is_public=True + status=ready."""
+        self._make_video(
+            title_bs='Uploading Video', cloudflare_uid='lc-excl-uploading',
+            status=VideoClip.STATUS_UPLOADING, is_public=False,
+        )
+        self._make_video(
+            title_bs='Processing Video', cloudflare_uid='lc-excl-processing',
+            status=VideoClip.STATUS_PROCESSING, is_public=False,
+        )
+        self._make_video(
+            title_bs='Failed Video', cloudflare_uid='lc-excl-failed',
+            status=VideoClip.STATUS_FAILED, is_public=False,
+        )
+        self._make_video(
+            title_bs='Ready Private', cloudflare_uid='lc-excl-ready-private',
+            status=VideoClip.STATUS_READY, is_public=False,
+        )
+        self._make_video(
+            title_bs='Ready Public', cloudflare_uid='lc-incl-ready-public',
+            status=VideoClip.STATUS_READY, is_public=True,
+        )
+        public_client = APIClient()
+        resp = public_client.get('/api/public/videos/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in resp.data['results']]
+        self.assertIn('lc-incl-ready-public', uids)
+        self.assertNotIn('lc-excl-uploading', uids)
+        self.assertNotIn('lc-excl-processing', uids)
+        self.assertNotIn('lc-excl-failed', uids)
+        self.assertNotIn('lc-excl-ready-private', uids)
+
+
+# ===========================================================================
+# Phase 6A — Public comment cursor pagination
+# ===========================================================================
+
+class VideoTimestampCommentAPITests(TestCase):
+    """Phase 6A: Public video timestamp comment list/create with cursor pagination."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.video = VideoClip.objects.create(
+            title_bs='Comment Test Video',
+            cloudflare_uid='comment-test-uid-001',
+            status=VideoClip.STATUS_READY,
+            is_public=True,
+        )
+        self.url = f'/api/public/videos/{self.video.pk}/comments/'
+
+    def _make_comment(self, *, video=None, comment_status='approved', timestamp_seconds=0,
+                      text='Test comment'):
+        return VideoTimestampComment.objects.create(
+            video=video or self.video,
+            author_name='Test Author',
+            author_email='test@example.com',
+            text=text,
+            timestamp_seconds=timestamp_seconds,
+            status=comment_status,
+        )
+
+    # ---- 1. Anonymous access ----
+
+    def test_anonymous_can_list_approved_comments(self):
+        """Anonymous users can GET approved comments without authentication."""
+        self._make_comment(comment_status='approved', timestamp_seconds=10)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 1)
+
+    # ---- 2 & 3. Status filtering ----
+
+    def test_pending_comment_excluded_from_list(self):
+        """Pending comments are not returned in the public list."""
+        self._make_comment(comment_status='pending', timestamp_seconds=5)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 0)
+
+    def test_rejected_comment_excluded_from_list(self):
+        """Rejected comments are not returned in the public list."""
+        self._make_comment(comment_status='rejected', timestamp_seconds=5)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 0)
+
+    def test_only_approved_comments_returned(self):
+        """Mixed statuses: only approved ones appear."""
+        self._make_comment(comment_status='approved', timestamp_seconds=10, text='approved')
+        self._make_comment(comment_status='pending', timestamp_seconds=20, text='pending')
+        self._make_comment(comment_status='rejected', timestamp_seconds=30, text='rejected')
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 1)
+        self.assertEqual(resp.data['results'][0]['text'], 'approved')
+
+    # ---- 4. Paginated response shape ----
+
+    def test_response_has_cursor_pagination_shape(self):
+        """Response includes cursor pagination keys: next, previous, results."""
+        self._make_comment(comment_status='approved', timestamp_seconds=10)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('results', resp.data)
+        self.assertIn('next', resp.data)
+        self.assertIn('previous', resp.data)
+
+    # ---- 5. page_size respected ----
+
+    def test_page_size_respected(self):
+        """?page_size=2 returns exactly 2 results and a next cursor when more exist."""
+        for i in range(5):
+            self._make_comment(comment_status='approved', timestamp_seconds=i * 10)
+        resp = self.client.get(self.url + '?page_size=2')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 2)
+        self.assertIsNotNone(resp.data['next'])
+
+    # ---- 6. page_size capped at max_page_size=100 ----
+
+    def test_page_size_capped_at_100(self):
+        """?page_size=200 returns at most 100 results."""
+        for i in range(110):
+            self._make_comment(comment_status='approved', timestamp_seconds=i)
+        resp = self.client.get(self.url + '?page_size=200')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertLessEqual(len(resp.data['results']), 100)
+
+    # ---- 7. Comments scoped to requested video ----
+
+    def test_comments_scoped_to_requested_video(self):
+        """Only comments belonging to the requested video are returned."""
+        other_video = VideoClip.objects.create(
+            title_bs='Other Video',
+            cloudflare_uid='comment-other-uid-001',
+            status=VideoClip.STATUS_READY,
+            is_public=True,
+        )
+        self._make_comment(video=other_video, comment_status='approved',
+                           timestamp_seconds=5, text='other video comment')
+        self._make_comment(comment_status='approved', timestamp_seconds=10,
+                           text='this video comment')
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 1)
+        self.assertEqual(resp.data['results'][0]['text'], 'this video comment')
+
+    # ---- 8. Missing video returns empty results ----
+
+    def test_missing_video_returns_empty_results(self):
+        """GET for a non-existent video pk returns 200 with empty results."""
+        resp = self.client.get('/api/public/videos/99999/comments/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data['results']), 0)
+
+    # ---- 9. POST still creates pending comment ----
+
+    def test_post_creates_pending_comment(self):
+        """POST creates a new comment with status=pending for admin review."""
+        resp = self.client.post(self.url, {
+            'author_name': 'Alice',
+            'author_email': 'alice@example.com',
+            'text': 'Great shot!',
+            'timestamp_seconds': 30,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        comment = VideoTimestampComment.objects.get(pk=resp.data['id'])
+        self.assertEqual(comment.status, VideoTimestampComment.STATUS_PENDING)
+        self.assertEqual(comment.video, self.video)
+
+    # ---- 10. author_email never exposed ----
+
+    def test_author_email_not_in_list_response(self):
+        """GET response never exposes author_email."""
+        self._make_comment(comment_status='approved', timestamp_seconds=10)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        for item in resp.data['results']:
+            self.assertNotIn('author_email', item)
+
+
+# ===========================================================================
+# Phase 7A — Safe public caching smoke tests
+# ===========================================================================
+
+class PublicCachedEndpointTests(TestCase):
+    """Phase 7A: Verify cached public endpoints return correct data.
+
+    These tests clear the cache in setUp/tearDown so that caching cannot
+    cause cross-test interference. They confirm that cache_page does not
+    corrupt or alter the response data returned to clients.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.client = APIClient()
+
+    def tearDown(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    # ---- hero-video endpoint ----
+
+    def test_hero_video_returns_200_with_ready_public_video(self):
+        """HeroVideoView returns 200 and the video uid after caching is applied."""
+        VideoClip.objects.create(
+            title_bs='Hero Video',
+            cloudflare_uid='hero-cache-uid-001',
+            status=VideoClip.STATUS_READY,
+            is_public=True,
+        )
+        resp = self.client.get('/api/public/hero-video/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['cloudflare_uid'], 'hero-cache-uid-001')
+
+    def test_hero_video_returns_404_when_no_public_ready_video(self):
+        """HeroVideoView returns 404 when there is no public ready video."""
+        resp = self.client.get('/api/public/hero-video/')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_hero_video_two_requests_return_same_data(self):
+        """Two consecutive requests return identical data (cache does not corrupt)."""
+        VideoClip.objects.create(
+            title_bs='Stable Hero',
+            cloudflare_uid='hero-cache-uid-002',
+            status=VideoClip.STATUS_READY,
+            is_public=True,
+        )
+        resp1 = self.client.get('/api/public/hero-video/')
+        resp2 = self.client.get('/api/public/hero-video/')
+        self.assertEqual(resp1.status_code, 200)
+        self.assertEqual(resp1.data['cloudflare_uid'], resp2.data['cloudflare_uid'])
+
+    # ---- public albums list endpoint ----
+
+    def test_public_albums_list_returns_published_albums(self):
+        """PublicAlbumListView returns only published albums with caching applied."""
+        Album.objects.create(slug='pub-cached', title_bs='Published', is_published=True)
+        Album.objects.create(slug='draft-cached', title_bs='Draft', is_published=False)
+        resp = self.client.get('/api/public/albums/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('results', resp.data)
+        slugs = [a['slug'] for a in resp.data['results']]
+        self.assertIn('pub-cached', slugs)
+        self.assertNotIn('draft-cached', slugs)
+
+    def test_public_albums_populated_filter_still_works(self):
+        """?populated=true filter returns correct subset with caching applied."""
+        album = Album.objects.create(
+            slug='pop-cached', title_bs='Populated',
+            is_published=True, gallery_type=Album.GALLERY_TYPE_IMAGE,
+        )
+        MediaItem.objects.create(
+            album=album, is_published=True, media_type='image',
+        )
+        empty = Album.objects.create(
+            slug='empty-cached', title_bs='Empty',
+            is_published=True, gallery_type=Album.GALLERY_TYPE_IMAGE,
+        )
+        resp = self.client.get('/api/public/albums/?populated=true')
+        self.assertEqual(resp.status_code, 200)
+        slugs = [a['slug'] for a in resp.data['results']]
+        self.assertIn('pop-cached', slugs)
+        self.assertNotIn('empty-cached', slugs)
