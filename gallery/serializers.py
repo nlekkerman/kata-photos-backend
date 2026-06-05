@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VisitorMessage
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage
 
 # ---------------------------------------------------------------------------
 # Upload safety constants (Phase 6)
@@ -1020,4 +1020,34 @@ class VisitorMessageCreateSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError('This field may not be blank.')
         return value
+
+
+# ---------------------------------------------------------------------------
+# VideoTimestampComment serializers
+# ---------------------------------------------------------------------------
+
+class VideoTimestampCommentCreateSerializer(serializers.ModelSerializer):
+    """Write serializer for public timestamp comment submission.
+
+    ``author_email`` is write-only and is never included in the response.
+    ``status`` is set server-side to ``pending``; visitors cannot override it.
+    """
+
+    timestamp_seconds = serializers.IntegerField(min_value=0)
+
+    class Meta:
+        model = VideoTimestampComment
+        fields = ['id', 'author_name', 'author_email', 'text', 'timestamp_seconds', 'created_at']
+        read_only_fields = ['id', 'created_at']
+        extra_kwargs = {
+            'author_email': {'write_only': True},
+        }
+
+
+class VideoTimestampCommentPublicSerializer(serializers.ModelSerializer):
+    """Read serializer for public approved comments.  Never exposes ``author_email``."""
+
+    class Meta:
+        model = VideoTimestampComment
+        fields = ['id', 'author_name', 'text', 'timestamp_seconds', 'created_at']
 

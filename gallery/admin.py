@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VisitorMessage
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage
 
 
 @admin.register(Tag)
@@ -167,3 +167,30 @@ class VisitorMessageAdmin(admin.ModelAdmin):
         if len(obj.message) > 50:
             return obj.message[:50] + '...'
         return obj.message
+
+
+@admin.register(VideoTimestampComment)
+class VideoTimestampCommentAdmin(admin.ModelAdmin):
+    list_display = ('video', 'author_name', 'text_preview', 'timestamp_seconds', 'status', 'created_at')
+    list_filter = ('status', 'video', 'created_at')
+    search_fields = ('author_name', 'author_email', 'text')
+    ordering = ('-created_at',)
+    readonly_fields = ('author_email', 'created_at', 'updated_at')
+    fieldsets = (
+        ('Comment', {
+            'fields': ('video', 'timestamp_seconds', 'author_name', 'author_email', 'text'),
+        }),
+        ('Moderation', {
+            'fields': ('status',),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    @admin.display(description='Preview')
+    def text_preview(self, obj):
+        if len(obj.text) > 50:
+            return obj.text[:50] + '...'
+        return obj.text

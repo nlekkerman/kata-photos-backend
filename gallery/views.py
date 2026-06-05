@@ -17,7 +17,7 @@ class CloudflareServiceError(APIException):
 
 logger = logging.getLogger(__name__)
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VisitorMessage
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage
 from .serializers import (
     AdminImageGallerySerializer,
     AdminImageGalleryWriteSerializer,
@@ -43,6 +43,8 @@ from .serializers import (
     VideoClipDirectUploadRequestSerializer,
     VideoClipSerializer,
     VisitorMessageCreateSerializer,
+    VideoTimestampCommentCreateSerializer,
+    VideoTimestampCommentPublicSerializer,
 )
 
 _ALLOWED_LANGS = ('en', 'bs')
@@ -901,4 +903,33 @@ class VisitorMessageCreateView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = VisitorMessageCreateSerializer
     queryset = VisitorMessage.objects.none()
+
+
+class VideoTimestampCommentListCreateView(generics.ListCreateAPIView):
+    """
+    GET  /api/public/videos/<video_pk>/comments/
+        Returns approved comments for the given video ordered by timestamp.
+
+    POST /api/public/videos/<video_pk>/comments/
+        Submit a new comment; saved with status=pending for admin review.
+        ``author_email`` is accepted but never included in any response.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return VideoTimestampCommentCreateSerializer
+        return VideoTimestampCommentPublicSerializer
+
+    def get_queryset(self):
+        video_pk = self.kwargs['video_pk']
+        return VideoTimestampComment.objects.filter(
+            video_id=video_pk,
+            status=VideoTimestampComment.STATUS_APPROVED,
+        )
+
+    def perform_create(self, serializer):
+        video = generics.get_object_or_404(VideoClip, pk=self.kwargs['video_pk'])
+        serializer.save(video=video, status=VideoTimestampComment.STATUS_PENDING)
 

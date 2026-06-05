@@ -282,3 +282,42 @@ class VisitorMessage(models.Model):
     def __str__(self):
         return f'{self.sender_name} — {self.subject}'
 
+
+class VideoTimestampComment(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
+    video = models.ForeignKey(
+        'VideoClip',
+        on_delete=models.CASCADE,
+        related_name='timestamp_comments',
+    )
+    author_name = models.CharField(max_length=120)
+    author_email = models.EmailField(max_length=254)
+    text = models.TextField()
+    timestamp_seconds = models.PositiveIntegerField()
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['timestamp_seconds', 'created_at']
+        indexes = [
+            models.Index(fields=['video', 'status']),
+            models.Index(fields=['status']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.author_name} @ {self.timestamp_seconds}s — {self.video}'
+
