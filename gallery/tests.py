@@ -972,6 +972,148 @@ class AlbumSearchCoverageTests(TestCase):
         self.assertIn('bez-tagova', slugs)
 
 
+# ===========================================================================
+# Visitor message reply endpoint tests
+# ===========================================================================
+
+_VISITOR_MESSAGE_REPLY_URL = '/api/gallery/admin/visitor-messages/{pk}/reply/'
+
+
+class VisitorMessageReplyViewTests(TestCase):
+    """Tests for POST /api/gallery/admin/visitor-messages/<pk>/reply/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(username='replystaf', password='pass', is_staff=True)
+        self.user = User.objects.create_user(username='replyuser', password='pass', is_staff=False)
+        from .models import VisitorMessage
+        self.message = VisitorMessage.objects.create(
+            sender_name='Ana Hodžić',
+            sender_email='ana@example.com',
+            subject='Pitanje o videu',
+            message='Odakle su snimani orlovi?',
+            status=VisitorMessage.STATUS_NEW,
+        )
+        self.url = _VISITOR_MESSAGE_REPLY_URL.format(pk=self.message.pk)
+        self.payload = {
+            'reply_subject': 'Re: Pitanje o videu',
+            'reply_body': 'Hvala na poruci! Snimci su iz Plješevice.',
+        }
+
+    def test_anonymous_cannot_reply(self):
+        resp = self.client.post(self.url, self.payload, format='json')
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+    def test_non_staff_cannot_reply(self):
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.post(self.url, self.payload, format='json')
+        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_staff_reply_returns_200(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(self.url, self.payload, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('replied_at', resp.data)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_reply_updates_message_status_to_replied(self):
+        self.client.force_authenticate(user=self.staff)
+        self.client.post(self.url, self.payload, format='json')
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.status, 'replied')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_reply_sets_replied_at(self):
+        self.client.force_authenticate(user=self.staff)
+        self.client.post(self.url, self.payload, format='json')
+        self.message.refresh_from_db()
+        self.assertIsNotNone(self.message.replied_at)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_reply_creates_visitor_message_reply_record(self):
+        from .models import VisitorMessageReply
+        self.client.force_authenticate(user=self.staff)
+        self.client.post(self.url, self.payload, format='json')
+        self.assertEqual(VisitorMessageReply.objects.filter(visitor_message=self.message).count(), 1)
+        reply = VisitorMessageReply.objects.get(visitor_message=self.message)
+        self.assertEqual(reply.reply_subject, self.payload['reply_subject'])
+        self.assertEqual(reply.sent_by, self.staff)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_reply_sends_email_to_sender(self):
+        from django.core import mail
+        self.client.force_authenticate(user=self.staff)
+        self.client.post(self.url, self.payload, format='json')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('ana@example.com', mail.outbox[0].to)
+        self.assertEqual(mail.outbox[0].subject, self.payload['reply_subject'])
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_reply_email_body_contains_reply_and_original(self):
+        from django.core import mail
+        self.client.force_authenticate(user=self.staff)
+        self.client.post(self.url, self.payload, format='json')
+        body = mail.outbox[0].body
+        self.assertIn(self.payload['reply_body'], body)
+        self.assertIn(self.message.message, body)
+        self.assertIn(self.message.subject, body)
+
+    def test_missing_reply_subject_returns_400(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(self.url, {'reply_body': 'Hvala'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('reply_subject', resp.data)
+
+    def test_blank_reply_subject_returns_400(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(self.url, {'reply_subject': '', 'reply_body': 'Hvala'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('reply_subject', resp.data)
+
+    def test_missing_reply_body_returns_400(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(self.url, {'reply_subject': 'Re: Pitanje'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('reply_body', resp.data)
+
+    def test_blank_reply_body_returns_400(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(self.url, {'reply_subject': 'Re: Pitanje', 'reply_body': ''}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('reply_body', resp.data)
+
+    def test_nonexistent_message_returns_404(self):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(
+            _VISITOR_MESSAGE_REPLY_URL.format(pk=99999),
+            self.payload,
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch('django.core.mail.send_mail', side_effect=Exception('SMTP connection refused'))
+    def test_email_failure_returns_502(self, mock_mail):
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(self.url, self.payload, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_502_BAD_GATEWAY)
+
+    @patch('django.core.mail.send_mail', side_effect=Exception('SMTP connection refused'))
+    def test_email_failure_does_not_update_message_status(self, mock_mail):
+        self.client.force_authenticate(user=self.staff)
+        self.client.post(self.url, self.payload, format='json')
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.status, 'new')
+        self.assertIsNone(self.message.replied_at)
+
+    @patch('django.core.mail.send_mail', side_effect=Exception('SMTP connection refused'))
+    def test_email_failure_does_not_create_reply_record(self, mock_mail):
+        from .models import VisitorMessageReply
+        self.client.force_authenticate(user=self.staff)
+        self.client.post(self.url, self.payload, format='json')
+        self.assertEqual(VisitorMessageReply.objects.count(), 0)
+
+
 class VideoSearchCoverageTests(TestCase):
     """Expanded ?search= coverage for the public video list endpoint."""
 

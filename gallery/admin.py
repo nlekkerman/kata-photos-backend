@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage, VisitorMessageReply
 
 
 @admin.register(Tag)
@@ -142,7 +142,8 @@ class VisitorMessageAdmin(admin.ModelAdmin):
     list_filter = ('status', 'created_at')
     search_fields = ('sender_name', 'sender_email', 'subject', 'message')
     ordering = ('-created_at',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('replied_at', 'created_at', 'updated_at')
+    actions = ['mark_read', 'mark_replied', 'archive_messages']
     fieldsets = (
         ('Sender', {
             'fields': ('sender_name', 'sender_email'),
@@ -156,6 +157,10 @@ class VisitorMessageAdmin(admin.ModelAdmin):
         ('Status', {
             'fields': ('status',),
         }),
+        ('Reply', {
+            'fields': ('replied_at',),
+            'classes': ('collapse',),
+        }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',),
@@ -168,14 +173,46 @@ class VisitorMessageAdmin(admin.ModelAdmin):
             return obj.message[:50] + '...'
         return obj.message
 
+    @admin.action(description='Mark selected messages as read')
+    def mark_read(self, request, queryset):
+        updated = queryset.update(status=VisitorMessage.STATUS_READ)
+        self.message_user(request, f'{updated} message(s) marked as read.')
+
+    @admin.action(description='Mark selected messages as replied')
+    def mark_replied(self, request, queryset):
+        updated = queryset.update(status=VisitorMessage.STATUS_REPLIED)
+        self.message_user(request, f'{updated} message(s) marked as replied.')
+
+    @admin.action(description='Archive selected messages')
+    def archive_messages(self, request, queryset):
+        updated = queryset.update(status=VisitorMessage.STATUS_ARCHIVED)
+        self.message_user(request, f'{updated} message(s) archived.')
+
+
+@admin.register(VisitorMessageReply)
+class VisitorMessageReplyAdmin(admin.ModelAdmin):
+    list_display = ('visitor_message', 'reply_subject', 'sent_by', 'sent_at')
+    list_filter = ('sent_at',)
+    search_fields = ('reply_subject', 'reply_body', 'visitor_message__sender_name', 'visitor_message__sender_email')
+    ordering = ('-sent_at',)
+    readonly_fields = ('visitor_message', 'reply_subject', 'reply_body', 'sent_by', 'sent_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(VideoTimestampComment)
 class VideoTimestampCommentAdmin(admin.ModelAdmin):
     list_display = ('video', 'author_name', 'text_preview', 'timestamp_seconds', 'status', 'created_at')
+    list_editable = ('status',)
     list_filter = ('status', 'video', 'created_at')
     search_fields = ('author_name', 'author_email', 'text')
     ordering = ('-created_at',)
     readonly_fields = ('author_email', 'created_at', 'updated_at')
+    actions = ['approve_comments', 'reject_comments', 'mark_pending']
     fieldsets = (
         ('Comment', {
             'fields': ('video', 'timestamp_seconds', 'author_name', 'author_email', 'text'),
@@ -194,3 +231,18 @@ class VideoTimestampCommentAdmin(admin.ModelAdmin):
         if len(obj.text) > 50:
             return obj.text[:50] + '...'
         return obj.text
+
+    @admin.action(description='Approve selected comments')
+    def approve_comments(self, request, queryset):
+        updated = queryset.update(status=VideoTimestampComment.STATUS_APPROVED)
+        self.message_user(request, f'{updated} comment(s) approved.')
+
+    @admin.action(description='Reject selected comments')
+    def reject_comments(self, request, queryset):
+        updated = queryset.update(status=VideoTimestampComment.STATUS_REJECTED)
+        self.message_user(request, f'{updated} comment(s) rejected.')
+
+    @admin.action(description='Mark selected comments as pending')
+    def mark_pending(self, request, queryset):
+        updated = queryset.update(status=VideoTimestampComment.STATUS_PENDING)
+        self.message_user(request, f'{updated} comment(s) marked as pending.')

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage, VisitorMessageReply
 
 # ---------------------------------------------------------------------------
 # Upload safety constants (Phase 6)
@@ -1050,4 +1050,23 @@ class VideoTimestampCommentPublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = VideoTimestampComment
         fields = ['id', 'author_name', 'text', 'timestamp_seconds', 'created_at']
+
+
+class VisitorMessageReplyRequestSerializer(serializers.Serializer):
+    """Validates the payload for POST /api/gallery/admin/visitor-messages/<pk>/reply/."""
+
+    reply_subject = serializers.CharField(max_length=250, allow_blank=False)
+    reply_body = serializers.CharField(allow_blank=False)
+
+    def validate_reply_subject(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('This field may not be blank.')
+        return value
+
+    def validate_reply_body(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('This field may not be blank.')
+        return value
 

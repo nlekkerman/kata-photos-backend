@@ -201,3 +201,29 @@ CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS = int(
 # Optional: burned-in watermark profile UID applied to every new direct upload.
 # Leave empty to upload without a watermark.
 CLOUDFLARE_STREAM_WATERMARK_UID = os.getenv("CLOUDFLARE_STREAM_WATERMARK_UID", "")
+
+# ---------------------------------------------------------------------------
+# Email — Django built-in mail system
+# ---------------------------------------------------------------------------
+# For local/dev testing set EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+# (the default below) so email is printed to the console without an SMTP server.
+# For production set all variables via environment:
+#   EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+#   EMAIL_HOST=smtp.example.com
+#   EMAIL_PORT=587
+#   EMAIL_USE_TLS=True
+#   EMAIL_USE_SSL=False
+#   EMAIL_HOST_USER=sender@example.com
+#   EMAIL_HOST_PASSWORD=<secret — never commit>
+#   DEFAULT_FROM_EMAIL=sender@example.com
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False").lower() == "true"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "webmaster@localhost")

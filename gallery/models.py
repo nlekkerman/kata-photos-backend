@@ -268,6 +268,7 @@ class VisitorMessage(models.Model):
         related_name='visitor_messages',
     )
     timestamp_seconds = models.PositiveIntegerField(null=True, blank=True)
+    replied_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -281,6 +282,33 @@ class VisitorMessage(models.Model):
 
     def __str__(self):
         return f'{self.sender_name} — {self.subject}'
+
+
+class VisitorMessageReply(models.Model):
+    visitor_message = models.ForeignKey(
+        'VisitorMessage',
+        on_delete=models.CASCADE,
+        related_name='replies',
+    )
+    reply_subject = models.CharField(max_length=250)
+    reply_body = models.TextField()
+    sent_at = models.DateTimeField(auto_now_add=True)
+    sent_by = models.ForeignKey(
+        'auth.User',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='visitor_message_replies',
+    )
+
+    class Meta:
+        ordering = ['-sent_at']
+        verbose_name = 'Visitor Message Reply'
+        verbose_name_plural = 'Visitor Message Replies'
+
+    def __str__(self):
+        sender = self.sent_by.get_username() if self.sent_by_id else 'unknown'
+        return f'Reply to #{self.visitor_message_id} by {sender}'
 
 
 class VideoTimestampComment(models.Model):

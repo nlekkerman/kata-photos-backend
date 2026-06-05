@@ -17,7 +17,7 @@ class CloudflareServiceError(APIException):
 
 logger = logging.getLogger(__name__)
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage
+from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage, VisitorMessageReply
 from .serializers import (
     AdminImageGallerySerializer,
     AdminImageGalleryWriteSerializer,
@@ -45,6 +45,7 @@ from .serializers import (
     VisitorMessageCreateSerializer,
     VideoTimestampCommentCreateSerializer,
     VideoTimestampCommentPublicSerializer,
+    VisitorMessageReplyRequestSerializer,
 )
 
 _ALLOWED_LANGS = ('en', 'bs')
@@ -932,4 +933,88 @@ class VideoTimestampCommentListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         video = generics.get_object_or_404(VideoClip, pk=self.kwargs['video_pk'])
         serializer.save(video=video, status=VideoTimestampComment.STATUS_PENDING)
+
+
+class VisitorMessageReplyView(generics.GenericAPIView):
+    """
+    POST /api/gallery/admin/visitor-messages/<pk>/reply/
+
+    Admin-only endpoint: send an email reply to a VisitorMessage sender.
+    On success updates the message status to 'replied' and records replied_at.
+    On email failure returns 502 without modifying the message.
+    """
+
+    permission_classes = [IsAdminUser]
+    serializer_class = VisitorMessageReplyRequestSerializer
+    http_method_names = ['post', 'head', 'options']
+
+    def post(self, request, pk):
+        from django.core.mail import send_mail
+        from django.utils import timezone as tz
+
+        message = generics.get_object_or_404(VisitorMessage, pk=pk)
+
+        if not message.sender_email:
+            return Response(
+                {'detail': 'This message has no sender email address.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reply_subject = serializer.validated_data['reply_subject']
+        reply_body = serializer.validated_data['reply_body']
+
+        # Build plain-text email body: reply first, then quoted original message.
+        lines = [reply_body, '', '---', '']
+        lines.append(f'Original message from {message.sender_name}:')
+        lines.append(f'Subject: {message.subject}')
+        if message.video_id:
+            video_title = (
+                message.video.title_bs
+                or message.video.title_en
+                or f'Video #{message.video_id}'
+            )
+            lines.append(f'Video: {video_title}')
+        if message.timestamp_seconds is not None:
+            lines.append(f'Timestamp: {message.timestamp_seconds}s')
+        lines.append('')
+        lines.append(message.message)
+        email_body = '\n'.join(lines)
+
+        try:
+            send_mail(
+                subject=reply_subject,
+                message=email_body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[message.sender_email],
+                fail_silently=False,
+            )
+        except Exception as exc:
+            logger.error(
+                'Failed to send reply email for VisitorMessage pk=%s: %s',
+                message.pk,
+                exc,
+            )
+            return Response(
+                {'detail': 'Failed to send email. The message was not updated.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        now = tz.now()
+        message.status = VisitorMessage.STATUS_REPLIED
+        message.replied_at = now
+        message.save(update_fields=['status', 'replied_at', 'updated_at'])
+
+        VisitorMessageReply.objects.create(
+            visitor_message=message,
+            reply_subject=reply_subject,
+            reply_body=reply_body,
+            sent_by=request.user,
+        )
+
+        return Response(
+            {'detail': 'Reply sent.', 'replied_at': message.replied_at},
+            status=status.HTTP_200_OK,
+        )
 
