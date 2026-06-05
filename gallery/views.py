@@ -2,7 +2,7 @@ import io
 import logging
 
 from django.conf import settings
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from rest_framework import generics, status
 from rest_framework.exceptions import APIException
 from rest_framework.pagination import CursorPagination
@@ -34,6 +34,8 @@ from .serializers import (
     AlbumDetailSerializer,
     AlbumListSerializer,
     AlbumWriteSerializer,
+    PublicAlbumCardSerializer,
+    PublicAlbumDetailSerializer,
     FieldNoteDetailSerializer,
     FieldNoteListSerializer,
     HeroVideoSerializer,
@@ -1089,4 +1091,119 @@ class PublicVideoDetailView(LangContextMixin, generics.RetrieveAPIView):
         return VideoClip.objects.filter(
             is_public=True, status=VideoClip.STATUS_READY
         ).select_related('album').prefetch_related('tags')
+
+
+# ===========================================================================
+# Public album endpoints (Phase 3A — canonical public album browsing)
+# ===========================================================================
+
+class PublicAlbumCursorPagination(CursorPagination):
+    """Stable cursor pagination for the public album list."""
+
+    page_size = 12
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+    ordering = ('display_order', 'id')
+
+
+class PublicAlbumListView(LangContextMixin, generics.ListAPIView):
+    """
+    GET /api/public/albums/
+
+    Cursor-paginated list of published albums.
+    Supports ?type=, ?tag=, ?search=, ?populated=, ?lang=, ?page_size= params.
+    Anonymous access allowed.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = PublicAlbumCardSerializer
+    pagination_class = PublicAlbumCursorPagination
+
+    def get_queryset(self):
+        qs = Album.objects.filter(
+            is_published=True
+        ).select_related('cover_media').prefetch_related('tags')
+
+        gallery_type = self.request.query_params.get('type')
+        if gallery_type in (Album.GALLERY_TYPE_IMAGE, Album.GALLERY_TYPE_VIDEO):
+            qs = qs.filter(gallery_type=gallery_type)
+
+        tag_slug = self.request.query_params.get('tag')
+        if tag_slug:
+            qs = qs.filter(tags__slug=tag_slug).distinct()
+
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(title_bs__icontains=search) |
+                Q(title_en__icontains=search) |
+                Q(description_bs__icontains=search) |
+                Q(description_en__icontains=search)
+            ).distinct()
+
+        if self.request.query_params.get('populated', '').lower() == 'true':
+            qs = qs.annotate(
+                _has_ready_video=Exists(
+                    VideoClip.objects.filter(
+                        album=OuterRef('pk'),
+                        is_public=True,
+                        status=VideoClip.STATUS_READY,
+                    )
+                ),
+                _has_published_image=Exists(
+                    MediaItem.objects.filter(
+                        album=OuterRef('pk'),
+                        is_published=True,
+                        media_type='image',
+                    )
+                ),
+            ).filter(
+                Q(gallery_type=Album.GALLERY_TYPE_VIDEO, _has_ready_video=True) |
+                Q(gallery_type=Album.GALLERY_TYPE_IMAGE, _has_published_image=True)
+            )
+
+        return qs
+
+
+class PublicAlbumDetailView(LangContextMixin, generics.RetrieveAPIView):
+    """
+    GET /api/public/albums/<slug>/
+
+    Returns a single published album by slug.
+    Returns 404 for unpublished or missing albums.
+    Anonymous access allowed.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = PublicAlbumDetailSerializer
+    lookup_field = 'slug'
+
+    def get_queryset(self):
+        return Album.objects.filter(
+            is_published=True
+        ).select_related('cover_media').prefetch_related('tags')
+
+
+class PublicAlbumVideosView(LangContextMixin, generics.ListAPIView):
+    """
+    GET /api/public/albums/<slug>/videos/
+
+    Cursor-paginated list of public ready videos for a published album.
+    Returns 404 if the album does not exist or is not published.
+    Anonymous access allowed.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = PublicVideoCardSerializer
+    pagination_class = PublicVideoCursorPagination
+
+    def get_queryset(self):
+        album = generics.get_object_or_404(
+            Album, slug=self.kwargs['slug'], is_published=True
+        )
+        return VideoClip.objects.filter(
+            album=album,
+            is_public=True,
+            status=VideoClip.STATUS_READY,
+        ).select_related('album')
 

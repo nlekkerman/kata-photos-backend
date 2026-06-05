@@ -1159,3 +1159,70 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
         lang = self.context.get('lang', 'bs')
         return resolve_translated(obj.album, 'title', lang) or obj.album.title
 
+
+# ---------------------------------------------------------------------------
+# Public album serializers (Phase 3A — canonical public album browsing)
+# ---------------------------------------------------------------------------
+
+class PublicAlbumCardSerializer(serializers.ModelSerializer):
+    """Thin list serializer for the public album browse list.
+
+    Returns language-resolved ``title`` and ``description``.
+    Does NOT expose raw bilingual fields, admin-only fields, or nested media lists.
+    """
+
+    cover = MediaCoverSerializer(source='cover_media', read_only=True)
+    title = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    tags = TagSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Album
+        fields = ['id', 'slug', 'title', 'description', 'gallery_type', 'display_order', 'cover', 'tags']
+
+    def get_title(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'title', lang)
+
+    def get_description(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'description', lang)
+
+
+class PublicAlbumDetailSerializer(serializers.ModelSerializer):
+    """Serializer for the public album detail endpoint.
+
+    Returns language-resolved ``title``, ``description``, ``seo_title``, ``seo_description``.
+    Does NOT expose raw bilingual fields, nested media/video lists, or admin-only fields.
+    """
+
+    cover = MediaCoverSerializer(source='cover_media', read_only=True)
+    title = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    seo_title = serializers.SerializerMethodField()
+    seo_description = serializers.SerializerMethodField()
+    tags = TagSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Album
+        fields = [
+            'id', 'slug', 'title', 'description', 'seo_title', 'seo_description',
+            'gallery_type', 'display_order', 'cover', 'tags', 'created_at',
+        ]
+
+    def get_title(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'title', lang)
+
+    def get_description(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'description', lang)
+
+    def get_seo_title(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'seo_title', lang)
+
+    def get_seo_description(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'seo_description', lang)
+

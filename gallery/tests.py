@@ -1537,3 +1537,356 @@ class PublicVideoDetailAPITests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertIsNone(resp.data['album_id'])
         self.assertEqual(resp.data['album_title'], '')
+
+
+# ===========================================================================
+# Public album endpoints (Phase 3A)
+# ===========================================================================
+
+_PUBLIC_ALBUM_LIST_URL = '/api/public/albums/'
+_PUBLIC_ALBUM_DETAIL_URL = '/api/public/albums/{}/'
+_PUBLIC_ALBUM_VIDEOS_URL = '/api/public/albums/{}/videos/'
+
+_ALBUM_ADMIN_FIELDS = [
+    'title_bs', 'title_en', 'description_bs', 'description_en',
+    'seo_title_bs', 'seo_title_en', 'seo_description_bs', 'seo_description_en',
+    'is_published', 'updated_at',
+]
+
+
+def _make_published_album(**kwargs):
+    """Helper: create a published Album with minimal required fields."""
+    defaults = {
+        'slug': f'album-{Album.objects.count()}-{id(kwargs)}',
+        'title_bs': 'Test Album BS',
+        'title_en': 'Test Album EN',
+        'is_published': True,
+        'gallery_type': Album.GALLERY_TYPE_VIDEO,
+    }
+    defaults.update(kwargs)
+    return Album.objects.create(**defaults)
+
+
+class PublicAlbumListAPITests(TestCase):
+    """Phase 3A: GET /api/public/albums/ — cursor-paginated public album list."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def _results(self, resp):
+        if isinstance(resp.data, dict) and 'results' in resp.data:
+            return resp.data['results']
+        return resp.data
+
+    # 1. Anonymous user can list public albums.
+    def test_anonymous_can_list_albums(self):
+        _make_published_album(slug='alb-anon')
+        resp = self.client.get(_PUBLIC_ALBUM_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+    # 2. Unpublished albums are excluded.
+    def test_unpublished_albums_excluded(self):
+        _make_published_album(slug='alb-pub')
+        Album.objects.create(slug='alb-draft', title_bs='Draft', is_published=False)
+        resp = self.client.get(_PUBLIC_ALBUM_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in self._results(resp)]
+        self.assertIn('alb-pub', slugs)
+        self.assertNotIn('alb-draft', slugs)
+
+    # 3. Response is paginated.
+    def test_response_is_paginated(self):
+        for i in range(14):
+            _make_published_album(slug=f'alb-pag-{i}')
+        resp = self.client.get(_PUBLIC_ALBUM_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('results', resp.data)
+        self.assertIn('next', resp.data)
+
+    # 4. page_size is respected.
+    def test_page_size_respected(self):
+        for i in range(15):
+            _make_published_album(slug=f'alb-sz-{i}')
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?page_size=5')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self._results(resp)), 5)
+
+    # 5. page_size is capped.
+    def test_page_size_capped_at_max(self):
+        for i in range(55):
+            _make_published_album(slug=f'alb-cap-{i}')
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?page_size=100')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertLessEqual(len(self._results(resp)), 50)
+
+    # 6. lang=bs returns Bosnian-resolved title/description.
+    def test_lang_bs_returns_bosnian_title_and_description(self):
+        _make_published_album(
+            slug='alb-lang-bs',
+            title_bs='Bosanski Naslov',
+            title_en='English Title',
+            description_bs='Bosanski opis',
+            description_en='English description',
+        )
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?lang=bs')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        item = next(a for a in self._results(resp) if a['slug'] == 'alb-lang-bs')
+        self.assertEqual(item['title'], 'Bosanski Naslov')
+        self.assertEqual(item['description'], 'Bosanski opis')
+
+    # 7. Raw bilingual fields are not exposed in list response.
+    def test_raw_bilingual_fields_not_in_list(self):
+        _make_published_album(slug='alb-fields')
+        resp = self.client.get(_PUBLIC_ALBUM_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._results(resp)
+        self.assertGreater(len(results), 0)
+        item = results[0]
+        for field in _ALBUM_ADMIN_FIELDS:
+            self.assertNotIn(field, item)
+
+    # 8. type=video filters video albums.
+    def test_type_video_filter(self):
+        _make_published_album(slug='alb-vid', gallery_type=Album.GALLERY_TYPE_VIDEO)
+        _make_published_album(slug='alb-img', gallery_type=Album.GALLERY_TYPE_IMAGE)
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?type=video')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in self._results(resp)]
+        self.assertIn('alb-vid', slugs)
+        self.assertNotIn('alb-img', slugs)
+
+    # 9. type=image filters image albums.
+    def test_type_image_filter(self):
+        _make_published_album(slug='alb-vid2', gallery_type=Album.GALLERY_TYPE_VIDEO)
+        _make_published_album(slug='alb-img2', gallery_type=Album.GALLERY_TYPE_IMAGE)
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?type=image')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in self._results(resp)]
+        self.assertIn('alb-img2', slugs)
+        self.assertNotIn('alb-vid2', slugs)
+
+    # 10. tag= filters albums.
+    def test_tag_filter(self):
+        tag = Tag.objects.create(name_bs='Priroda', name_en='Nature', slug='priroda')
+        tagged = _make_published_album(slug='alb-tagged')
+        tagged.tags.add(tag)
+        _make_published_album(slug='alb-untagged')
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?tag=priroda')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in self._results(resp)]
+        self.assertIn('alb-tagged', slugs)
+        self.assertNotIn('alb-untagged', slugs)
+
+    # 11. search= filters albums.
+    def test_search_filter(self):
+        _make_published_album(slug='alb-match', title_bs='Planinski park')
+        _make_published_album(slug='alb-nomatch', title_bs='More i plaža')
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?search=planinski')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in self._results(resp)]
+        self.assertIn('alb-match', slugs)
+        self.assertNotIn('alb-nomatch', slugs)
+
+    # 12. populated=true excludes empty published albums.
+    def test_populated_excludes_empty_albums(self):
+        empty_video_alb = _make_published_album(slug='alb-empty-vid', gallery_type=Album.GALLERY_TYPE_VIDEO)
+        populated_vid_alb = _make_published_album(slug='alb-pop-vid', gallery_type=Album.GALLERY_TYPE_VIDEO)
+        _make_ready_video(cloudflare_uid='uid-pop-alb', album=populated_vid_alb)
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?populated=true')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in self._results(resp)]
+        self.assertIn('alb-pop-vid', slugs)
+        self.assertNotIn('alb-empty-vid', slugs)
+
+    # 13. populated=true&type=video includes only albums with public-ready videos.
+    def test_populated_type_video_includes_only_albums_with_ready_videos(self):
+        alb_ready = _make_published_album(slug='alb-ready-v', gallery_type=Album.GALLERY_TYPE_VIDEO)
+        alb_no_ready = _make_published_album(slug='alb-no-ready-v', gallery_type=Album.GALLERY_TYPE_VIDEO)
+        _make_ready_video(cloudflare_uid='uid-ready-v', album=alb_ready)
+        # non-ready video on alb_no_ready
+        VideoClip.objects.create(
+            album=alb_no_ready, title_bs='Not Ready', cloudflare_uid='uid-nr-v',
+            status=VideoClip.STATUS_PROCESSING, is_public=True,
+        )
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?populated=true&type=video')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in self._results(resp)]
+        self.assertIn('alb-ready-v', slugs)
+        self.assertNotIn('alb-no-ready-v', slugs)
+
+    # 14. populated=true&type=image includes only albums with published image media.
+    def test_populated_type_image_includes_only_albums_with_published_images(self):
+        alb_img_pub = _make_published_album(slug='alb-img-pub', gallery_type=Album.GALLERY_TYPE_IMAGE)
+        alb_img_empty = _make_published_album(slug='alb-img-empty', gallery_type=Album.GALLERY_TYPE_IMAGE)
+        MediaItem.objects.create(album=alb_img_pub, is_published=True, media_type='image', title_bs='Photo')
+        MediaItem.objects.create(album=alb_img_empty, is_published=False, media_type='image', title_bs='Hidden')
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?populated=true&type=image')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in self._results(resp)]
+        self.assertIn('alb-img-pub', slugs)
+        self.assertNotIn('alb-img-empty', slugs)
+
+
+class PublicAlbumDetailAPITests(TestCase):
+    """Phase 3A: GET /api/public/albums/<slug>/ — single published album detail."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.tag = Tag.objects.create(name_bs='Šume', name_en='Forests', slug='sume')
+        self.album = _make_published_album(
+            slug='alb-detail',
+            title_bs='Detalj BS',
+            title_en='Detail EN',
+            description_bs='Opis BS',
+            description_en='Description EN',
+            seo_title_bs='SEO BS',
+            seo_title_en='SEO EN',
+            gallery_type=Album.GALLERY_TYPE_VIDEO,
+        )
+        self.album.tags.add(self.tag)
+
+    # 1. Anonymous user can retrieve published album.
+    def test_anonymous_can_retrieve_published_album(self):
+        resp = self.client.get(_PUBLIC_ALBUM_DETAIL_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+    # 2. Unpublished album returns 404.
+    def test_unpublished_album_returns_404(self):
+        unpub = Album.objects.create(slug='alb-unpub', title_bs='Unpub', is_published=False)
+        resp = self.client.get(_PUBLIC_ALBUM_DETAIL_URL.format(unpub.slug))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    # 3. Missing album returns 404.
+    def test_missing_album_returns_404(self):
+        resp = self.client.get(_PUBLIC_ALBUM_DETAIL_URL.format('does-not-exist'))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    # 4. lang=bs resolves title/description.
+    def test_lang_bs_resolves_title_and_description(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUM_DETAIL_URL.format(self.album.slug)}?lang=bs')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data['title'], 'Detalj BS')
+        self.assertEqual(resp.data['description'], 'Opis BS')
+        self.assertEqual(resp.data['seo_title'], 'SEO BS')
+
+    # 5. Detail includes expected fields.
+    def test_detail_includes_expected_fields(self):
+        resp = self.client.get(_PUBLIC_ALBUM_DETAIL_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        for field in ['id', 'slug', 'title', 'description', 'seo_title', 'seo_description',
+                      'gallery_type', 'display_order', 'cover', 'tags', 'created_at']:
+            self.assertIn(field, resp.data)
+
+    # 6. Detail does not include nested video/media lists.
+    def test_detail_does_not_include_nested_video_or_media_lists(self):
+        _make_ready_video(cloudflare_uid='uid-det-vid', album=self.album)
+        MediaItem.objects.create(album=self.album, is_published=True, title_bs='Media')
+        resp = self.client.get(_PUBLIC_ALBUM_DETAIL_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertNotIn('videos', resp.data)
+        self.assertNotIn('media_items', resp.data)
+        self.assertNotIn('media', resp.data)
+
+    def test_detail_does_not_expose_raw_bilingual_fields(self):
+        resp = self.client.get(_PUBLIC_ALBUM_DETAIL_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        for field in _ALBUM_ADMIN_FIELDS:
+            self.assertNotIn(field, resp.data)
+
+    def test_detail_tags_returned(self):
+        resp = self.client.get(_PUBLIC_ALBUM_DETAIL_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        tag_slugs = [t['slug'] for t in resp.data['tags']]
+        self.assertIn('sume', tag_slugs)
+
+
+class PublicAlbumVideosAPITests(TestCase):
+    """Phase 3A: GET /api/public/albums/<slug>/videos/ — paginated public videos for album."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.album = _make_published_album(slug='alb-videos', gallery_type=Album.GALLERY_TYPE_VIDEO)
+        self.other_album = _make_published_album(slug='alb-other', gallery_type=Album.GALLERY_TYPE_VIDEO)
+
+    def _results(self, resp):
+        if isinstance(resp.data, dict) and 'results' in resp.data:
+            return resp.data['results']
+        return resp.data
+
+    # 1. Anonymous user can list videos for published album.
+    def test_anonymous_can_list_album_videos(self):
+        _make_ready_video(cloudflare_uid='uid-av-1', album=self.album)
+        resp = self.client.get(_PUBLIC_ALBUM_VIDEOS_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+    # 2. Unpublished album returns 404.
+    def test_unpublished_album_videos_returns_404(self):
+        unpub = Album.objects.create(slug='alb-unpub-v', title_bs='Unpub', is_published=False)
+        resp = self.client.get(_PUBLIC_ALBUM_VIDEOS_URL.format(unpub.slug))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    # 3. Missing album returns 404.
+    def test_missing_album_videos_returns_404(self):
+        resp = self.client.get(_PUBLIC_ALBUM_VIDEOS_URL.format('no-such-album'))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    # 4. Only public ready videos are returned.
+    def test_returns_only_public_ready_videos(self):
+        v_ok = _make_ready_video(cloudflare_uid='uid-av-ok', album=self.album)
+        _make_ready_video(cloudflare_uid='uid-av-priv', album=self.album, is_public=False)
+        _make_ready_video(cloudflare_uid='uid-av-proc', album=self.album, status=VideoClip.STATUS_PROCESSING)
+        resp = self.client.get(_PUBLIC_ALBUM_VIDEOS_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        uids = [v['cloudflare_uid'] for v in self._results(resp)]
+        self.assertIn('uid-av-ok', uids)
+        self.assertNotIn('uid-av-priv', uids)
+        self.assertNotIn('uid-av-proc', uids)
+
+    # 5. Private and non-ready videos are excluded.
+    def test_private_and_non_ready_excluded(self):
+        for uid, s, pub in [
+            ('uid-av-up', VideoClip.STATUS_UPLOADING, True),
+            ('uid-av-fail', VideoClip.STATUS_FAILED, True),
+            ('uid-av-np', VideoClip.STATUS_READY, False),
+        ]:
+            VideoClip.objects.create(
+                album=self.album, title_bs='X', cloudflare_uid=uid, status=s, is_public=pub
+            )
+        resp = self.client.get(_PUBLIC_ALBUM_VIDEOS_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self._results(resp)), 0)
+
+    # 6. Response is paginated.
+    def test_response_is_paginated(self):
+        for i in range(14):
+            _make_ready_video(cloudflare_uid=f'uid-avp-{i}', album=self.album)
+        resp = self.client.get(_PUBLIC_ALBUM_VIDEOS_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('results', resp.data)
+        self.assertIn('next', resp.data)
+
+    # 7. page_size is respected / capped.
+    def test_page_size_respected_and_capped(self):
+        for i in range(55):
+            _make_ready_video(cloudflare_uid=f'uid-avc-{i}', album=self.album)
+        resp5 = self.client.get(f'{_PUBLIC_ALBUM_VIDEOS_URL.format(self.album.slug)}?page_size=5')
+        self.assertEqual(resp5.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self._results(resp5)), 5)
+        resp_big = self.client.get(f'{_PUBLIC_ALBUM_VIDEOS_URL.format(self.album.slug)}?page_size=100')
+        self.assertEqual(resp_big.status_code, status.HTTP_200_OK)
+        self.assertLessEqual(len(self._results(resp_big)), 50)
+
+    # 8. Response uses public video card shape and excludes heavy/admin fields.
+    def test_response_uses_public_video_card_shape(self):
+        _make_ready_video(cloudflare_uid='uid-av-shape', album=self.album)
+        resp = self.client.get(_PUBLIC_ALBUM_VIDEOS_URL.format(self.album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        results = self._results(resp)
+        self.assertEqual(len(results), 1)
+        item = results[0]
+        for field in ['id', 'title', 'album_id', 'album_title',
+                      'cloudflare_uid', 'cloudflare_thumbnail_url',
+                      'duration_seconds', 'created_at']:
+            self.assertIn(field, item)
+        for field in _HEAVY_CARD_FIELDS:
+            self.assertNotIn(field, item)
