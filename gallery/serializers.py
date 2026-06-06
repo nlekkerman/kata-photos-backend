@@ -1066,7 +1066,7 @@ class VideoTimestampCommentPublicSerializer(serializers.ModelSerializer):
 class AdminVisitorMessageSerializer(serializers.ModelSerializer):
     """Read serializer for the admin visitor message list. Exposes sender_email (staff only)."""
 
-    video_id = serializers.IntegerField(source='video_id', read_only=True)
+    video_id = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = VisitorMessage
