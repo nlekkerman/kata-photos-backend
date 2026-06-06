@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage, VisitorMessageReply
+from .share_helpers import album_share_info, media_share_info, video_share_info
 
 # ---------------------------------------------------------------------------
 # Upload safety constants (Phase 6)
@@ -357,6 +358,10 @@ class MediaItemPublicSerializer(serializers.ModelSerializer):
     description = serializers.SerializerMethodField()
     alt_text = serializers.SerializerMethodField()
     caption = serializers.SerializerMethodField()
+    share_url = serializers.SerializerMethodField()
+    facebook_share_url = serializers.SerializerMethodField()
+    frontend_url = serializers.SerializerMethodField()
+    is_shareable = serializers.SerializerMethodField()
 
     class Meta:
         model = MediaItem
@@ -374,6 +379,10 @@ class MediaItemPublicSerializer(serializers.ModelSerializer):
             'width',
             'height',
             'display_order',
+            'share_url',
+            'facebook_share_url',
+            'frontend_url',
+            'is_shareable',
         ]
 
     def get_public_url(self, obj):
@@ -399,6 +408,18 @@ class MediaItemPublicSerializer(serializers.ModelSerializer):
     def get_caption(self, obj):
         lang = self.context.get('lang', 'en')
         return resolve_translated(obj, 'caption', lang)
+
+    def get_share_url(self, obj):
+        return media_share_info(obj, self.context.get('request'))['share_url']
+
+    def get_facebook_share_url(self, obj):
+        return media_share_info(obj, self.context.get('request'))['facebook_share_url']
+
+    def get_frontend_url(self, obj):
+        return media_share_info(obj, self.context.get('request'))['frontend_url']
+
+    def get_is_shareable(self, obj):
+        return media_share_info(obj, self.context.get('request'))['is_shareable']
 
 
 class FieldNoteCoverSerializer(serializers.ModelSerializer):
@@ -1157,6 +1178,10 @@ class PublicVideoCardSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     album_id = serializers.SerializerMethodField()
     album_title = serializers.SerializerMethodField()
+    share_url = serializers.SerializerMethodField()
+    facebook_share_url = serializers.SerializerMethodField()
+    frontend_url = serializers.SerializerMethodField()
+    is_shareable = serializers.SerializerMethodField()
 
     class Meta:
         model = VideoClip
@@ -1169,6 +1194,10 @@ class PublicVideoCardSerializer(serializers.ModelSerializer):
             'cloudflare_thumbnail_url',
             'duration_seconds',
             'created_at',
+            'share_url',
+            'facebook_share_url',
+            'frontend_url',
+            'is_shareable',
         ]
 
     def get_title(self, obj):
@@ -1184,6 +1213,18 @@ class PublicVideoCardSerializer(serializers.ModelSerializer):
         lang = self.context.get('lang', 'bs')
         return resolve_translated(obj.album, 'title', lang) or obj.album.title
 
+    def get_share_url(self, obj):
+        return video_share_info(obj, self.context.get('request'))['share_url']
+
+    def get_facebook_share_url(self, obj):
+        return video_share_info(obj, self.context.get('request'))['facebook_share_url']
+
+    def get_frontend_url(self, obj):
+        return video_share_info(obj, self.context.get('request'))['frontend_url']
+
+    def get_is_shareable(self, obj):
+        return video_share_info(obj, self.context.get('request'))['is_shareable']
+
 
 class PublicVideoDetailSerializer(serializers.ModelSerializer):
     """Serializer for the public video detail endpoint.
@@ -1197,6 +1238,10 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
     album_id = serializers.SerializerMethodField()
     album_title = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
+    share_url = serializers.SerializerMethodField()
+    facebook_share_url = serializers.SerializerMethodField()
+    frontend_url = serializers.SerializerMethodField()
+    is_shareable = serializers.SerializerMethodField()
 
     class Meta:
         model = VideoClip
@@ -1212,6 +1257,10 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
             'duration_seconds',
             'tags',
             'created_at',
+            'share_url',
+            'facebook_share_url',
+            'frontend_url',
+            'is_shareable',
         ]
 
     def get_title(self, obj):
@@ -1230,6 +1279,18 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
             return ''
         lang = self.context.get('lang', 'bs')
         return resolve_translated(obj.album, 'title', lang) or obj.album.title
+
+    def get_share_url(self, obj):
+        return video_share_info(obj, self.context.get('request'))['share_url']
+
+    def get_facebook_share_url(self, obj):
+        return video_share_info(obj, self.context.get('request'))['facebook_share_url']
+
+    def get_frontend_url(self, obj):
+        return video_share_info(obj, self.context.get('request'))['frontend_url']
+
+    def get_is_shareable(self, obj):
+        return video_share_info(obj, self.context.get('request'))['is_shareable']
 
 
 # ---------------------------------------------------------------------------
@@ -1247,10 +1308,17 @@ class PublicAlbumCardSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
+    share_url = serializers.SerializerMethodField()
+    facebook_share_url = serializers.SerializerMethodField()
+    frontend_url = serializers.SerializerMethodField()
+    is_shareable = serializers.SerializerMethodField()
 
     class Meta:
         model = Album
-        fields = ['id', 'slug', 'title', 'description', 'gallery_type', 'display_order', 'cover', 'tags']
+        fields = [
+            'id', 'slug', 'title', 'description', 'gallery_type', 'display_order', 'cover', 'tags',
+            'share_url', 'facebook_share_url', 'frontend_url', 'is_shareable',
+        ]
 
     def get_title(self, obj):
         lang = self.context.get('lang', 'bs')
@@ -1259,6 +1327,18 @@ class PublicAlbumCardSerializer(serializers.ModelSerializer):
     def get_description(self, obj):
         lang = self.context.get('lang', 'bs')
         return resolve_translated(obj, 'description', lang)
+
+    def get_share_url(self, obj):
+        return album_share_info(obj, self.context.get('request'))['share_url']
+
+    def get_facebook_share_url(self, obj):
+        return album_share_info(obj, self.context.get('request'))['facebook_share_url']
+
+    def get_frontend_url(self, obj):
+        return album_share_info(obj, self.context.get('request'))['frontend_url']
+
+    def get_is_shareable(self, obj):
+        return album_share_info(obj, self.context.get('request'))['is_shareable']
 
 
 class PublicAlbumDetailSerializer(serializers.ModelSerializer):
@@ -1274,12 +1354,17 @@ class PublicAlbumDetailSerializer(serializers.ModelSerializer):
     seo_title = serializers.SerializerMethodField()
     seo_description = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
+    share_url = serializers.SerializerMethodField()
+    facebook_share_url = serializers.SerializerMethodField()
+    frontend_url = serializers.SerializerMethodField()
+    is_shareable = serializers.SerializerMethodField()
 
     class Meta:
         model = Album
         fields = [
             'id', 'slug', 'title', 'description', 'seo_title', 'seo_description',
             'gallery_type', 'display_order', 'cover', 'tags', 'created_at',
+            'share_url', 'facebook_share_url', 'frontend_url', 'is_shareable',
         ]
 
     def get_title(self, obj):
@@ -1297,4 +1382,16 @@ class PublicAlbumDetailSerializer(serializers.ModelSerializer):
     def get_seo_description(self, obj):
         lang = self.context.get('lang', 'bs')
         return resolve_translated(obj, 'seo_description', lang)
+
+    def get_share_url(self, obj):
+        return album_share_info(obj, self.context.get('request'))['share_url']
+
+    def get_facebook_share_url(self, obj):
+        return album_share_info(obj, self.context.get('request'))['facebook_share_url']
+
+    def get_frontend_url(self, obj):
+        return album_share_info(obj, self.context.get('request'))['frontend_url']
+
+    def get_is_shareable(self, obj):
+        return album_share_info(obj, self.context.get('request'))['is_shareable']
 

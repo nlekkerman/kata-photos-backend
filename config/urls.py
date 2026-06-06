@@ -9,6 +9,7 @@ urlpatterns = [
     path("api/auth/", include("auth_api.urls")),
     path("api/gallery/", include("gallery.urls")),
     path("api/public/", include("gallery.public_urls")),
+    path("share/", include("gallery.share_urls")),
 ]
 
 

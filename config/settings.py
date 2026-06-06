@@ -205,6 +205,15 @@ CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS = int(
 CLOUDFLARE_STREAM_WATERMARK_UID = os.getenv("CLOUDFLARE_STREAM_WATERMARK_UID", "")
 
 # ---------------------------------------------------------------------------
+# Social sharing
+# ---------------------------------------------------------------------------
+# Public frontend root — used to build frontend_url in share API responses.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://kataphotos.com")
+# Fallback OG image for share pages when no media is available.
+# Set to an absolute HTTPS URL of a static image on the frontend or CDN.
+FALLBACK_OG_IMAGE = os.getenv("FALLBACK_OG_IMAGE", "")
+
+# ---------------------------------------------------------------------------
 # Email — Django built-in mail system
 # ---------------------------------------------------------------------------
 # For local/dev testing set EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
