@@ -1671,7 +1671,30 @@ class PublicAlbumListAPITests(TestCase):
         self.assertIn('alb-img2', slugs)
         self.assertNotIn('alb-vid2', slugs)
 
-    # 10. tag= filters albums.
+    # 15. Invalid type value returns HTTP 400.
+    def test_invalid_type_photo_returns_400(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?type=photo')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # 16. Another invalid type value returns HTTP 400.
+    def test_invalid_type_videos_returns_400(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?type=videos')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # 17. Empty type string returns HTTP 400.
+    def test_empty_type_string_returns_400(self):
+        resp = self.client.get(f'{_PUBLIC_ALBUM_LIST_URL}?type=')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # 18. Missing type param returns all published albums.
+    def test_missing_type_returns_all_published(self):
+        _make_published_album(slug='alb-all-vid', gallery_type=Album.GALLERY_TYPE_VIDEO)
+        _make_published_album(slug='alb-all-img', gallery_type=Album.GALLERY_TYPE_IMAGE)
+        resp = self.client.get(_PUBLIC_ALBUM_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        slugs = [a['slug'] for a in self._results(resp)]
+        self.assertIn('alb-all-vid', slugs)
+        self.assertIn('alb-all-img', slugs)
     def test_tag_filter(self):
         tag = Tag.objects.create(name_bs='Priroda', name_en='Nature', slug='priroda')
         tagged = _make_published_album(slug='alb-tagged')
@@ -1897,10 +1920,11 @@ class PublicAlbumVideosAPITests(TestCase):
         for field in _HEAVY_CARD_FIELDS:
             self.assertNotIn(field, item)
 
-
-# ===========================================================================
-# Public album media endpoint (Phase 3B)
-# ===========================================================================
+    # 9. Image album returns 404 on /videos/ endpoint.
+    def test_image_album_returns_404_on_videos_endpoint(self):
+        image_album = _make_published_album(slug='alb-img-novid', gallery_type=Album.GALLERY_TYPE_IMAGE)
+        resp = self.client.get(_PUBLIC_ALBUM_VIDEOS_URL.format(image_album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
 _PUBLIC_ALBUM_MEDIA_URL = '/api/public/albums/{}/media/'
 
@@ -2049,6 +2073,12 @@ class PublicAlbumMediaAPITests(TestCase):
         item = self._results(resp)[0]
         self.assertNotIn('album', item)
         self.assertIn('album_slug', item)
+
+    # 15. Video album returns 404 on /media/ endpoint.
+    def test_video_album_returns_404_on_media_endpoint(self):
+        video_album = _make_published_album(slug='alb-vid-nomedia', gallery_type=Album.GALLERY_TYPE_VIDEO)
+        resp = self.client.get(_PUBLIC_ALBUM_MEDIA_URL.format(video_album.slug))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
 
 # ===========================================================================

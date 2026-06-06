@@ -6,7 +6,7 @@ from django.db.models import Count, Exists, OuterRef, Q
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import generics, status
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.pagination import CursorPagination, PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAdminUser
@@ -1260,6 +1260,7 @@ class PublicAlbumListView(LangContextMixin, generics.ListAPIView):
 
     Cursor-paginated list of published albums.
     Supports ?type=, ?tag=, ?search=, ?populated=, ?lang=, ?page_size= params.
+    ?type= must be 'image' or 'video'; any other non-empty value returns HTTP 400.
     Anonymous access allowed. Responses are cached per URL for _PUBLIC_CACHE_TTL seconds.
     """
 
@@ -1273,7 +1274,11 @@ class PublicAlbumListView(LangContextMixin, generics.ListAPIView):
         ).select_related('cover_media').prefetch_related('tags')
 
         gallery_type = self.request.query_params.get('type')
-        if gallery_type in (Album.GALLERY_TYPE_IMAGE, Album.GALLERY_TYPE_VIDEO):
+        if gallery_type is not None:
+            if gallery_type not in (Album.GALLERY_TYPE_IMAGE, Album.GALLERY_TYPE_VIDEO):
+                raise ValidationError(
+                    {"detail": "Invalid album type. Expected 'image' or 'video'."}
+                )
             qs = qs.filter(gallery_type=gallery_type)
 
         tag_slug = self.request.query_params.get('tag')
@@ -1337,7 +1342,7 @@ class PublicAlbumVideosView(LangContextMixin, generics.ListAPIView):
     GET /api/public/albums/<slug>/videos/
 
     Cursor-paginated list of public ready videos for a published album.
-    Returns 404 if the album does not exist or is not published.
+    Returns 404 if the album does not exist, is not published, or is not a video gallery.
     Anonymous access allowed.
     """
 
@@ -1347,7 +1352,8 @@ class PublicAlbumVideosView(LangContextMixin, generics.ListAPIView):
 
     def get_queryset(self):
         album = generics.get_object_or_404(
-            Album, slug=self.kwargs['slug'], is_published=True
+            Album, slug=self.kwargs['slug'], is_published=True,
+            gallery_type=Album.GALLERY_TYPE_VIDEO,
         )
         return VideoClip.objects.filter(
             album=album,
@@ -1370,7 +1376,7 @@ class PublicAlbumMediaView(LangContextMixin, generics.ListAPIView):
     GET /api/public/albums/<slug>/media/
 
     Cursor-paginated list of published image media for a published album.
-    Returns 404 if the album does not exist or is not published.
+    Returns 404 if the album does not exist, is not published, or is not an image gallery.
     Anonymous access allowed.
     """
 
@@ -1380,7 +1386,8 @@ class PublicAlbumMediaView(LangContextMixin, generics.ListAPIView):
 
     def get_queryset(self):
         album = generics.get_object_or_404(
-            Album, slug=self.kwargs['slug'], is_published=True
+            Album, slug=self.kwargs['slug'], is_published=True,
+            gallery_type=Album.GALLERY_TYPE_IMAGE,
         )
         return MediaItem.objects.filter(
             album=album,
