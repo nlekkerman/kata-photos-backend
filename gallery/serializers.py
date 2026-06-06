@@ -1063,6 +1063,67 @@ class VideoTimestampCommentPublicSerializer(serializers.ModelSerializer):
         fields = ['id', 'author_name', 'text', 'timestamp_seconds', 'created_at']
 
 
+class AdminVisitorMessageSerializer(serializers.ModelSerializer):
+    """Read serializer for the admin visitor message list. Exposes sender_email (staff only)."""
+
+    video_id = serializers.IntegerField(source='video_id', read_only=True)
+
+    class Meta:
+        model = VisitorMessage
+        fields = [
+            'id',
+            'sender_name',
+            'sender_email',
+            'subject',
+            'message',
+            'status',
+            'video_id',
+            'timestamp_seconds',
+            'created_at',
+            'replied_at',
+        ]
+
+
+class AdminVideoTimestampCommentSerializer(serializers.ModelSerializer):
+    """Read serializer for the admin timestamp comment list. Exposes author_email (staff only)."""
+
+    video_title_bs = serializers.CharField(source='video.title_bs', read_only=True, default='')
+
+    class Meta:
+        model = VideoTimestampComment
+        fields = [
+            'id',
+            'video_id',
+            'video_title_bs',
+            'author_name',
+            'author_email',
+            'text',
+            'timestamp_seconds',
+            'status',
+            'created_at',
+        ]
+
+
+class AdminVideoTimestampCommentStatusSerializer(serializers.ModelSerializer):
+    """Write serializer for PATCH /admin/video-timestamp-comments/<pk>/. Only status is writable."""
+
+    class Meta:
+        model = VideoTimestampComment
+        fields = ['id', 'status']
+
+    def validate_status(self, value):
+        allowed = {
+            VideoTimestampComment.STATUS_PENDING,
+            VideoTimestampComment.STATUS_APPROVED,
+            VideoTimestampComment.STATUS_REJECTED,
+        }
+        if value not in allowed:
+            raise serializers.ValidationError(
+                f"Invalid status. Allowed values: {', '.join(sorted(allowed))}."
+            )
+        return value
+
+
 class VisitorMessageReplyRequestSerializer(serializers.Serializer):
     """Validates the payload for POST /api/gallery/admin/visitor-messages/<pk>/reply/."""
 

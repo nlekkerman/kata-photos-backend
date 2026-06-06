@@ -1,5 +1,10 @@
 from django.urls import path
 
+from .views_admin_messages import (
+    AdminVideoTimestampCommentDetailView,
+    AdminVideoTimestampCommentListView,
+    AdminVisitorMessageListView,
+)
 from .views import (
     AdminImageGalleryListCreateView,
     AdminImageGalleryRetrieveUpdateDestroyView,
@@ -82,5 +87,12 @@ urlpatterns = [
     # ------------------------------------------------------------------
     # Admin-only endpoints — visitor messages
     # ------------------------------------------------------------------
+    path('admin/visitor-messages/', AdminVisitorMessageListView.as_view(), name='admin-visitor-message-list'),
     path('admin/visitor-messages/<int:pk>/reply/', VisitorMessageReplyView.as_view(), name='admin-visitor-message-reply'),
+
+    # ------------------------------------------------------------------
+    # Admin-only endpoints — video timestamp comments
+    # ------------------------------------------------------------------
+    path('admin/video-timestamp-comments/', AdminVideoTimestampCommentListView.as_view(), name='admin-video-timestamp-comment-list'),
+    path('admin/video-timestamp-comments/<int:pk>/', AdminVideoTimestampCommentDetailView.as_view(), name='admin-video-timestamp-comment-detail'),
 ]
