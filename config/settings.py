@@ -205,6 +205,14 @@ CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS = int(
 CLOUDFLARE_STREAM_WATERMARK_UID = os.getenv("CLOUDFLARE_STREAM_WATERMARK_UID", "")
 
 # ---------------------------------------------------------------------------
+# OpenAI — auto-translation (Bosnian → English)
+# ---------------------------------------------------------------------------
+# Set OPENAI_API_KEY via Heroku config vars or .env (never commit the key).
+# OPENAI_TRANSLATION_MODEL is optional; defaults to gpt-4o-mini in the service.
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_TRANSLATION_MODEL = os.getenv("OPENAI_TRANSLATION_MODEL", "")
+
+# ---------------------------------------------------------------------------
 # Social sharing
 # ---------------------------------------------------------------------------
 # Public frontend root — used to build frontend_url in share API responses.
