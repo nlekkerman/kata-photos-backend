@@ -135,7 +135,7 @@ class MediaUploadAPITests(TestCase):
         resp = self.client.post(self.media_url, {'original_file': _make_image()}, format='multipart')
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         item = MediaItem.objects.get(pk=resp.data['id'])
-        self.assertFalse(item.is_published)
+        self.assertTrue(item.is_published)
 
     def test_width_height_file_size_populated(self):
         self.client.force_authenticate(user=self.staff)
@@ -411,7 +411,7 @@ class VideoClipDirectUploadWatermarkTests(TestCase):
         clip = VideoClip.objects.get()
         self.assertEqual(clip.cloudflare_uid, 'abc123uid')
         self.assertEqual(clip.status, VideoClip.STATUS_UPLOADING)
-        self.assertFalse(clip.is_public)  # Phase 5A: new uploads must be private
+        self.assertTrue(clip.is_public)  # new uploads are public; visible only when status=ready
 
     @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
     def test_response_includes_upload_url(self, mock_upload):
@@ -2588,7 +2588,7 @@ class AdminUploadLifecycleSafetyTests(TestCase):
     @patch('gallery.services.cloudflare_stream.create_direct_upload',
            return_value=_LIFECYCLE_CF_RESULT)
     def test_admin_direct_upload_creates_video_with_is_public_false(self, mock_upload):
-        """Test 2: Admin direct upload creates VideoClip with is_public=False."""
+        """Test 2: Admin direct upload creates VideoClip with is_public=True (visible when ready)."""
         resp = self.client.post(
             _ADMIN_VIDEO_DIRECT_UPLOAD_URL,
             {'title_bs': 'Novi Video', 'max_duration_seconds': 60},
@@ -2596,7 +2596,7 @@ class AdminUploadLifecycleSafetyTests(TestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         video = VideoClip.objects.get(cloudflare_uid='lifecycle-cf-uid-001')
-        self.assertFalse(video.is_public)
+        self.assertTrue(video.is_public)
 
     # ---- Rule 2: Complete upload moves to processing, never publishes ----
 

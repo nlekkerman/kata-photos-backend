@@ -249,7 +249,7 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
             description_en=data.get('description_en', ''),
             cloudflare_uid=cf_result['uid'],
             status=VideoClip.STATUS_UPLOADING,
-            is_public=False,
+            is_public=True,
         )
 
         return Response(
@@ -424,7 +424,7 @@ def _save_media_item_with_cloudflare(serializer, *, album, extra_save_kwargs=Non
     cf_token = settings.CLOUDFLARE_IMAGES_API_TOKEN
 
     if not (cf_account_id and cf_token and serializer.validated_data.get('original_file')):
-        serializer.save(album=album, provider='local', media_type='image', **extra)
+        serializer.save(album=album, provider='local', media_type='image', is_published=True, **extra)
         return
 
     uploaded_file = serializer.validated_data['original_file']
@@ -468,6 +468,7 @@ def _save_media_item_with_cloudflare(serializer, *, album, extra_save_kwargs=Non
         height=height,
         file_size=file_size,
         media_type='image',
+        is_published=True,
         **extra,
     )
 
@@ -511,7 +512,7 @@ class AdminImageGalleryListCreateView(generics.ListCreateAPIView):
         return AdminImageGallerySerializer
 
     def perform_create(self, serializer):
-        serializer.save(gallery_type=Album.GALLERY_TYPE_IMAGE)
+        serializer.save(gallery_type=Album.GALLERY_TYPE_IMAGE, is_published=True)
 
 
 class AdminImageGalleryRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
@@ -662,7 +663,7 @@ class AdminVideoGalleryListCreateView(generics.ListCreateAPIView):
         return AdminVideoGallerySerializer
 
     def perform_create(self, serializer):
-        serializer.save(gallery_type=Album.GALLERY_TYPE_VIDEO)
+        serializer.save(gallery_type=Album.GALLERY_TYPE_VIDEO, is_published=True)
 
 
 class AdminVideoGalleryRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
@@ -815,7 +816,7 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
             description_en=data.get('description_en', ''),
             cloudflare_uid=cf_result['uid'],
             status=VideoClip.STATUS_UPLOADING,
-            is_public=False,
+            is_public=True,
         )
 
         return Response(
