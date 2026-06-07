@@ -19,12 +19,13 @@ Rules:
 """
 
 import html
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.views import View
 
 from .models import Album, MediaItem, VideoClip
-from .share_helpers import album_og_meta, media_og_meta, video_og_meta
+from .share_helpers import album_og_meta, is_social_crawler, media_og_meta, video_og_meta
 
 # ---------------------------------------------------------------------------
 # HTML renderer
@@ -118,6 +119,20 @@ def _render(og: dict) -> HttpResponse:
     return HttpResponse(body, content_type="text/html; charset=utf-8")
 
 
+def _build_redirect_url(frontend_url: str, extra_params: dict) -> str:
+    """Append extra_params to frontend_url, preserving any existing query params.
+
+    Params already present in the URL are not overwritten or duplicated.
+    """
+    parsed = urlparse(frontend_url)
+    existing = parse_qs(parsed.query, keep_blank_values=True)
+    for key, value in extra_params.items():
+        if key not in existing:
+            existing[key] = [value]
+    new_query = urlencode(existing, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
@@ -140,6 +155,12 @@ class AlbumShareView(View):
         except Album.DoesNotExist:
             raise Http404("Album not found or not public.")
         og = album_og_meta(album, request)
+        if not is_social_crawler(request):
+            redirect_url = _build_redirect_url(
+                og["frontend_url"],
+                {"utm_source": "facebook", "utm_medium": "social"},
+            )
+            return HttpResponseRedirect(redirect_url)
         return _render(og)
 
 
@@ -161,6 +182,12 @@ class VideoShareView(View):
         except VideoClip.DoesNotExist:
             raise Http404("Video not found or not public.")
         og = video_og_meta(video, request)
+        if not is_social_crawler(request):
+            redirect_url = _build_redirect_url(
+                og["frontend_url"],
+                {"utm_source": "facebook", "utm_medium": "social", "autoplay": "1"},
+            )
+            return HttpResponseRedirect(redirect_url)
         return _render(og)
 
 
@@ -182,4 +209,10 @@ class ImageShareView(View):
         except MediaItem.DoesNotExist:
             raise Http404("Image not found or not public.")
         og = media_og_meta(media_item, request)
+        if not is_social_crawler(request):
+            redirect_url = _build_redirect_url(
+                og["frontend_url"],
+                {"utm_source": "facebook", "utm_medium": "social"},
+            )
+            return HttpResponseRedirect(redirect_url)
         return _render(og)

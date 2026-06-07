@@ -260,3 +260,31 @@ def media_share_info(media_item, request) -> dict:
         "frontend_url": f"{_frontend_url()}/images/{media_item.pk}",
         "is_shareable": media_item.is_published,
     }
+
+
+# ---------------------------------------------------------------------------
+# Crawler detection
+# ---------------------------------------------------------------------------
+
+_CRAWLER_UA_FRAGMENTS = (
+    "facebookexternalhit",
+    "facebot",
+    "meta-externalagent",
+    "twitterbot",
+    "linkedinbot",
+    "slackbot",
+    "discordbot",
+    "whatsapp",
+    "telegrambot",
+)
+
+
+def is_social_crawler(request) -> bool:
+    """Return True if the request appears to be from a social media crawler.
+
+    Checked via case-insensitive substring match on the User-Agent header.
+    When True the share view should serve the full OG HTML page.
+    When False a human browser is assumed and the view should redirect.
+    """
+    ua = request.META.get("HTTP_USER_AGENT", "").lower()
+    return any(fragment in ua for fragment in _CRAWLER_UA_FRAGMENTS)
