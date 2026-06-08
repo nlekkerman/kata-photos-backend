@@ -1503,7 +1503,8 @@ class PublicVideoDetailAPITests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         for field in ['id', 'title', 'description', 'album_id', 'album_title',
                       'cloudflare_uid', 'cloudflare_thumbnail_url',
-                      'cloudflare_playback_url', 'duration_seconds', 'tags', 'created_at']:
+                      'cloudflare_playback_url', 'duration_seconds', 'tags',
+                      'approved_comments_count', 'created_at']:
             self.assertIn(field, resp.data)
 
     def test_detail_does_not_include_admin_fields(self):

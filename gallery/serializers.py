@@ -1319,6 +1319,7 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
     album_id = serializers.SerializerMethodField()
     album_title = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
+    approved_comments_count = serializers.SerializerMethodField()
     share_url = serializers.SerializerMethodField()
     facebook_share_url = serializers.SerializerMethodField()
     frontend_url = serializers.SerializerMethodField()
@@ -1337,6 +1338,7 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
             'cloudflare_playback_url',
             'duration_seconds',
             'tags',
+            'approved_comments_count',
             'created_at',
             'share_url',
             'facebook_share_url',
@@ -1369,6 +1371,12 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
 
     def get_frontend_url(self, obj):
         return video_share_info(obj, self.context.get('request'))['frontend_url']
+
+    def get_approved_comments_count(self, obj):
+        return VideoTimestampComment.objects.filter(
+            video=obj,
+            status=VideoTimestampComment.STATUS_APPROVED,
+        ).count()
 
     def get_is_shareable(self, obj):
         return video_share_info(obj, self.context.get('request'))['is_shareable']
