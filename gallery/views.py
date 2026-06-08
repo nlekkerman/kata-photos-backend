@@ -401,7 +401,7 @@ class VideoClipSyncView(generics.GenericAPIView):
         if update_fields:
             video.save(update_fields=update_fields)
 
-        return Response(VideoClipSerializer(video).data)
+        return Response(AdminVideoItemSerializer(video).data)
 
 
 # ===========================================================================
