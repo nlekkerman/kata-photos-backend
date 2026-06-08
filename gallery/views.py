@@ -224,6 +224,13 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
             CloudflareStreamUploadError,
             create_direct_upload,
         )
+        from .services.video_titles import resolve_video_titles
+
+        title_bs, title_en = resolve_video_titles(
+            title_bs=data.get('title_bs'),
+            title_en=data.get('title_en'),
+            description_bs=data.get('description_bs'),
+        )
 
         try:
             cf_result = create_direct_upload(
@@ -232,6 +239,7 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
                 max_duration_seconds=data['max_duration_seconds'],
                 expiry_seconds=expiry_seconds,
                 watermark_uid=watermark_uid,
+                meta={"name": title_bs},
             )
         except CloudflareStreamUploadError as exc:
             logger.error(
@@ -243,8 +251,8 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
 
         video = VideoClip.objects.create(
             album=data.get('album'),
-            title_bs=data['title_bs'],
-            title_en=data.get('title_en', ''),
+            title_bs=title_bs,
+            title_en=title_en,
             description_bs=data.get('description_bs', ''),
             description_en=data.get('description_en', ''),
             cloudflare_uid=cf_result['uid'],
@@ -791,6 +799,13 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
             CloudflareStreamUploadError,
             create_direct_upload,
         )
+        from .services.video_titles import resolve_video_titles
+
+        title_bs, title_en = resolve_video_titles(
+            title_bs=data.get('title_bs'),
+            title_en=data.get('title_en'),
+            description_bs=data.get('description_bs'),
+        )
 
         try:
             cf_result = create_direct_upload(
@@ -799,6 +814,7 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
                 max_duration_seconds=data['max_duration_seconds'],
                 expiry_seconds=expiry_seconds,
                 watermark_uid=watermark_uid,
+                meta={"name": title_bs},
             )
         except CloudflareStreamUploadError as exc:
             logger.error(
@@ -810,8 +826,8 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
 
         video = VideoClip.objects.create(
             album=data.get('album'),
-            title_bs=data['title_bs'],
-            title_en=data.get('title_en', ''),
+            title_bs=title_bs,
+            title_en=title_en,
             description_bs=data.get('description_bs', ''),
             description_en=data.get('description_en', ''),
             cloudflare_uid=cf_result['uid'],

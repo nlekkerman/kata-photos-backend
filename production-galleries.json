@@ -1,1040 +1,1040 @@
 [
-{
-  "model": "gallery.album",
-  "pk": 1,
-  "fields": {
-    "title": "",
-    "slug": "divlje-svinje",
-    "gallery_type": "video",
-    "description": "",
-    "is_published": true,
-    "display_order": 0,
-    "cover_media": null,
-    "seo_title": "",
-    "seo_description": "",
-    "title_en": "Wild Boars",
-    "title_bs": "Divlje Svinje",
-    "description_en": "Boars of Pljesevica",
-    "description_bs": "Divlje Svinje Pljesevice",
-    "seo_title_en": "",
-    "seo_title_bs": "",
-    "seo_description_en": "",
-    "seo_description_bs": "",
-    "created_at": "2026-06-04T12:35:55.864Z",
-    "updated_at": "2026-06-06T11:25:37.187Z",
-    "tags": []
+  {
+    "model": "gallery.album",
+    "pk": 1,
+    "fields": {
+      "title": "",
+      "slug": "divlje-svinje",
+      "gallery_type": "video",
+      "description": "",
+      "is_published": true,
+      "display_order": 0,
+      "cover_media": null,
+      "seo_title": "",
+      "seo_description": "",
+      "title_en": "Wild Boars",
+      "title_bs": "Divlje Svinje",
+      "description_en": "Boars of Pljesevica",
+      "description_bs": "Divlje Svinje Pljesevice",
+      "seo_title_en": "",
+      "seo_title_bs": "",
+      "seo_description_en": "",
+      "seo_description_bs": "",
+      "created_at": "2026-06-04T12:35:55.864Z",
+      "updated_at": "2026-06-06T11:25:37.187Z",
+      "tags": []
+    }
+  },
+  {
+    "model": "gallery.album",
+    "pk": 2,
+    "fields": {
+      "title": "",
+      "slug": "ris",
+      "gallery_type": "video",
+      "description": "",
+      "is_published": true,
+      "display_order": 0,
+      "cover_media": null,
+      "seo_title": "",
+      "seo_description": "",
+      "title_en": "Lynx",
+      "title_bs": "Ris",
+      "description_en": "Wild Cat Lynks",
+      "description_bs": "Divlja macka Ris",
+      "seo_title_en": "",
+      "seo_title_bs": "",
+      "seo_description_en": "",
+      "seo_description_bs": "",
+      "created_at": "2026-06-04T22:37:09.073Z",
+      "updated_at": "2026-06-06T11:25:49.818Z",
+      "tags": [
+        19,
+        13,
+        17
+      ]
+    }
+  },
+  {
+    "model": "gallery.videoclip",
+    "pk": 1,
+    "fields": {
+      "album": 1,
+      "title_bs": "Vrijeme rucka",
+      "title_en": "Lunch Time",
+      "description_bs": "Majke i prasici na hranjenju",
+      "description_en": "Mothers with piglets",
+      "cloudflare_uid": "dd4aad071bc4206d0d6b7fa81c5af2ad",
+      "cloudflare_thumbnail_url": "https://customer-mhbxkp8fpuv0m566.cloudflarestream.com/dd4aad071bc4206d0d6b7fa81c5af2ad/thumbnails/thumbnail.jpg",
+      "cloudflare_playback_url": "https://customer-mhbxkp8fpuv0m566.cloudflarestream.com/dd4aad071bc4206d0d6b7fa81c5af2ad/iframe",
+      "duration_seconds": 20,
+      "status": "ready",
+      "is_public": true,
+      "created_at": "2026-06-04T12:38:16.291Z",
+      "updated_at": "2026-06-04T14:25:58.951Z",
+      "tags": [
+        1,
+        83,
+        84
+      ]
+    }
+  },
+  {
+    "model": "gallery.videoclip",
+    "pk": 2,
+    "fields": {
+      "album": 1,
+      "title_bs": "Vrijeme rucka 2",
+      "title_en": "Lunch Time 2",
+      "description_bs": "Majka i prascici u vrijeme rucka",
+      "description_en": "Moms and Piglets",
+      "cloudflare_uid": "1d4cc05add9f44a1986938d7ec790f6c",
+      "cloudflare_thumbnail_url": "https://customer-mhbxkp8fpuv0m566.cloudflarestream.com/1d4cc05add9f44a1986938d7ec790f6c/thumbnails/thumbnail.jpg",
+      "cloudflare_playback_url": "https://customer-mhbxkp8fpuv0m566.cloudflarestream.com/1d4cc05add9f44a1986938d7ec790f6c/iframe",
+      "duration_seconds": 20,
+      "status": "ready",
+      "is_public": true,
+      "created_at": "2026-06-04T12:41:55.941Z",
+      "updated_at": "2026-06-04T14:25:40.969Z",
+      "tags": [
+        23,
+        83
+      ]
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 1,
+    "fields": {
+      "name_bs": "Divlje Svinje",
+      "name_en": "Wild Boars",
+      "slug": "divlje-svinje",
+      "created_at": "2026-06-04T14:07:17.824Z",
+      "updated_at": "2026-06-04T14:07:17.824Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 2,
+    "fields": {
+      "name_bs": "Sisari",
+      "name_en": "Mammals",
+      "slug": "sisari",
+      "created_at": "2026-06-04T14:25:13.236Z",
+      "updated_at": "2026-06-04T14:25:13.236Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 3,
+    "fields": {
+      "name_bs": "Ptice",
+      "name_en": "Birds",
+      "slug": "ptice",
+      "created_at": "2026-06-04T14:25:13.245Z",
+      "updated_at": "2026-06-04T14:25:13.245Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 4,
+    "fields": {
+      "name_bs": "Grabljivice",
+      "name_en": "Raptors",
+      "slug": "grabljivice",
+      "created_at": "2026-06-04T14:25:13.250Z",
+      "updated_at": "2026-06-04T14:25:13.250Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 5,
+    "fields": {
+      "name_bs": "Sove",
+      "name_en": "Owls",
+      "slug": "sove",
+      "created_at": "2026-06-04T14:25:13.255Z",
+      "updated_at": "2026-06-04T14:25:13.255Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 6,
+    "fields": {
+      "name_bs": "Vodene ptice",
+      "name_en": "Water birds",
+      "slug": "vodene-ptice",
+      "created_at": "2026-06-04T14:25:13.262Z",
+      "updated_at": "2026-06-04T14:25:13.262Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 7,
+    "fields": {
+      "name_bs": "Gmizavci",
+      "name_en": "Reptiles",
+      "slug": "gmizavci",
+      "created_at": "2026-06-04T14:25:13.267Z",
+      "updated_at": "2026-06-04T14:25:13.267Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 8,
+    "fields": {
+      "name_bs": "Vodozemci",
+      "name_en": "Amphibians",
+      "slug": "vodozemci",
+      "created_at": "2026-06-04T14:25:13.271Z",
+      "updated_at": "2026-06-04T14:25:13.271Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 9,
+    "fields": {
+      "name_bs": "Ribe",
+      "name_en": "Fish",
+      "slug": "ribe",
+      "created_at": "2026-06-04T14:25:13.275Z",
+      "updated_at": "2026-06-04T14:25:13.275Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 10,
+    "fields": {
+      "name_bs": "Insekti",
+      "name_en": "Insects",
+      "slug": "insekti",
+      "created_at": "2026-06-04T14:25:13.281Z",
+      "updated_at": "2026-06-04T14:25:13.281Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 11,
+    "fields": {
+      "name_bs": "Leptiri",
+      "name_en": "Butterflies",
+      "slug": "leptiri",
+      "created_at": "2026-06-04T14:25:13.291Z",
+      "updated_at": "2026-06-04T14:25:13.291Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 12,
+    "fields": {
+      "name_bs": "Šumske životinje",
+      "name_en": "Forest animals",
+      "slug": "sumske-zivotinje",
+      "created_at": "2026-06-04T14:25:13.296Z",
+      "updated_at": "2026-06-04T14:25:13.296Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 13,
+    "fields": {
+      "name_bs": "Noćne životinje",
+      "name_en": "Nocturnal animals",
+      "slug": "nocne-zivotinje",
+      "created_at": "2026-06-04T14:25:13.301Z",
+      "updated_at": "2026-06-04T14:25:13.301Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 14,
+    "fields": {
+      "name_bs": "Tragovi životinja",
+      "name_en": "Animal tracks",
+      "slug": "tragovi-zivotinja",
+      "created_at": "2026-06-04T14:25:13.306Z",
+      "updated_at": "2026-06-04T14:25:13.306Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 15,
+    "fields": {
+      "name_bs": "Smeđi medvjed",
+      "name_en": "Brown bear",
+      "slug": "smedi-medvjed",
+      "created_at": "2026-06-04T14:25:13.310Z",
+      "updated_at": "2026-06-04T14:25:13.310Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 16,
+    "fields": {
+      "name_bs": "Vuk",
+      "name_en": "Wolf",
+      "slug": "vuk",
+      "created_at": "2026-06-04T14:25:13.317Z",
+      "updated_at": "2026-06-04T14:25:13.317Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 17,
+    "fields": {
+      "name_bs": "Ris",
+      "name_en": "Eurasian lynx",
+      "slug": "ris",
+      "created_at": "2026-06-04T14:25:13.321Z",
+      "updated_at": "2026-06-04T14:25:13.321Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 18,
+    "fields": {
+      "name_bs": "Lisica",
+      "name_en": "Red fox",
+      "slug": "lisica",
+      "created_at": "2026-06-04T14:25:13.327Z",
+      "updated_at": "2026-06-04T14:25:13.327Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 19,
+    "fields": {
+      "name_bs": "Divlja mačka",
+      "name_en": "Wildcat",
+      "slug": "divlja-macka",
+      "created_at": "2026-06-04T14:25:13.332Z",
+      "updated_at": "2026-06-04T14:25:13.332Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 20,
+    "fields": {
+      "name_bs": "Jazavac",
+      "name_en": "Badger",
+      "slug": "jazavac",
+      "created_at": "2026-06-04T14:25:13.337Z",
+      "updated_at": "2026-06-04T14:25:13.337Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 21,
+    "fields": {
+      "name_bs": "Kuna",
+      "name_en": "Marten",
+      "slug": "kuna",
+      "created_at": "2026-06-04T14:25:13.343Z",
+      "updated_at": "2026-06-04T14:25:13.343Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 22,
+    "fields": {
+      "name_bs": "Vidra",
+      "name_en": "Otter",
+      "slug": "vidra",
+      "created_at": "2026-06-04T14:25:13.350Z",
+      "updated_at": "2026-06-04T14:25:13.350Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 23,
+    "fields": {
+      "name_bs": "Divlja svinja",
+      "name_en": "Wild boar",
+      "slug": "divlja-svinja",
+      "created_at": "2026-06-04T14:25:13.360Z",
+      "updated_at": "2026-06-04T14:25:13.360Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 24,
+    "fields": {
+      "name_bs": "Srna",
+      "name_en": "Roe deer",
+      "slug": "srna",
+      "created_at": "2026-06-04T14:25:13.365Z",
+      "updated_at": "2026-06-04T14:25:13.365Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 25,
+    "fields": {
+      "name_bs": "Jelen",
+      "name_en": "Red deer",
+      "slug": "jelen",
+      "created_at": "2026-06-04T14:25:13.369Z",
+      "updated_at": "2026-06-04T14:25:13.369Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 26,
+    "fields": {
+      "name_bs": "Divokoza",
+      "name_en": "Chamois",
+      "slug": "divokoza",
+      "created_at": "2026-06-04T14:25:13.374Z",
+      "updated_at": "2026-06-04T14:25:13.374Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 27,
+    "fields": {
+      "name_bs": "Zec",
+      "name_en": "Hare",
+      "slug": "zec",
+      "created_at": "2026-06-04T14:25:13.383Z",
+      "updated_at": "2026-06-04T14:25:13.383Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 28,
+    "fields": {
+      "name_bs": "Vjeverica",
+      "name_en": "Squirrel",
+      "slug": "vjeverica",
+      "created_at": "2026-06-04T14:25:13.386Z",
+      "updated_at": "2026-06-04T14:25:13.386Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 29,
+    "fields": {
+      "name_bs": "Jež",
+      "name_en": "Hedgehog",
+      "slug": "jez",
+      "created_at": "2026-06-04T14:25:13.392Z",
+      "updated_at": "2026-06-04T14:25:13.392Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 30,
+    "fields": {
+      "name_bs": "Šišmiši",
+      "name_en": "Bats",
+      "slug": "sismisi",
+      "created_at": "2026-06-04T14:25:13.396Z",
+      "updated_at": "2026-06-04T14:25:13.396Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 31,
+    "fields": {
+      "name_bs": "Orao",
+      "name_en": "Eagle",
+      "slug": "orao",
+      "created_at": "2026-06-04T14:25:13.406Z",
+      "updated_at": "2026-06-04T14:25:13.406Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 32,
+    "fields": {
+      "name_bs": "Sokol",
+      "name_en": "Falcon",
+      "slug": "sokol",
+      "created_at": "2026-06-04T14:25:13.412Z",
+      "updated_at": "2026-06-04T14:25:13.412Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 33,
+    "fields": {
+      "name_bs": "Jastreb",
+      "name_en": "Hawk",
+      "slug": "jastreb",
+      "created_at": "2026-06-04T14:25:13.418Z",
+      "updated_at": "2026-06-04T14:25:13.418Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 34,
+    "fields": {
+      "name_bs": "Mišar",
+      "name_en": "Buzzard",
+      "slug": "misar",
+      "created_at": "2026-06-04T14:25:13.423Z",
+      "updated_at": "2026-06-04T14:25:13.423Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 35,
+    "fields": {
+      "name_bs": "Kobac",
+      "name_en": "Sparrowhawk",
+      "slug": "kobac",
+      "created_at": "2026-06-04T14:25:13.428Z",
+      "updated_at": "2026-06-04T14:25:13.428Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 36,
+    "fields": {
+      "name_bs": "Sova",
+      "name_en": "Owl",
+      "slug": "sova",
+      "created_at": "2026-06-04T14:25:13.432Z",
+      "updated_at": "2026-06-04T14:25:13.432Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 37,
+    "fields": {
+      "name_bs": "Ćuk",
+      "name_en": "Little owl",
+      "slug": "cuk",
+      "created_at": "2026-06-04T14:25:13.436Z",
+      "updated_at": "2026-06-04T14:25:13.436Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 38,
+    "fields": {
+      "name_bs": "Djetlić",
+      "name_en": "Woodpecker",
+      "slug": "djetlic",
+      "created_at": "2026-06-04T14:25:13.440Z",
+      "updated_at": "2026-06-04T14:25:13.440Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 39,
+    "fields": {
+      "name_bs": "Vrana",
+      "name_en": "Crow",
+      "slug": "vrana",
+      "created_at": "2026-06-04T14:25:13.444Z",
+      "updated_at": "2026-06-04T14:25:13.444Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 40,
+    "fields": {
+      "name_bs": "Gavran",
+      "name_en": "Raven",
+      "slug": "gavran",
+      "created_at": "2026-06-04T14:25:13.448Z",
+      "updated_at": "2026-06-04T14:25:13.448Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 41,
+    "fields": {
+      "name_bs": "Svraka",
+      "name_en": "Magpie",
+      "slug": "svraka",
+      "created_at": "2026-06-04T14:25:13.452Z",
+      "updated_at": "2026-06-04T14:25:13.452Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 42,
+    "fields": {
+      "name_bs": "Sjenica",
+      "name_en": "Tit",
+      "slug": "sjenica",
+      "created_at": "2026-06-04T14:25:13.465Z",
+      "updated_at": "2026-06-04T14:25:13.465Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 43,
+    "fields": {
+      "name_bs": "Crvendać",
+      "name_en": "Robin",
+      "slug": "crvendac",
+      "created_at": "2026-06-04T14:25:13.471Z",
+      "updated_at": "2026-06-04T14:25:13.471Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 44,
+    "fields": {
+      "name_bs": "Kos",
+      "name_en": "Blackbird",
+      "slug": "kos",
+      "created_at": "2026-06-04T14:25:13.475Z",
+      "updated_at": "2026-06-04T14:25:13.475Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 45,
+    "fields": {
+      "name_bs": "Drozd",
+      "name_en": "Thrush",
+      "slug": "drozd",
+      "created_at": "2026-06-04T14:25:13.480Z",
+      "updated_at": "2026-06-04T14:25:13.480Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 46,
+    "fields": {
+      "name_bs": "Čaplja",
+      "name_en": "Heron",
+      "slug": "caplja",
+      "created_at": "2026-06-04T14:25:13.487Z",
+      "updated_at": "2026-06-04T14:25:13.487Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 47,
+    "fields": {
+      "name_bs": "Patka",
+      "name_en": "Duck",
+      "slug": "patka",
+      "created_at": "2026-06-04T14:25:13.490Z",
+      "updated_at": "2026-06-04T14:25:13.490Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 48,
+    "fields": {
+      "name_bs": "Vodomar",
+      "name_en": "Kingfisher",
+      "slug": "vodomar",
+      "created_at": "2026-06-04T14:25:13.496Z",
+      "updated_at": "2026-06-04T14:25:13.496Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 49,
+    "fields": {
+      "name_bs": "Zmije",
+      "name_en": "Snakes",
+      "slug": "zmije",
+      "created_at": "2026-06-04T14:25:13.503Z",
+      "updated_at": "2026-06-04T14:25:13.504Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 50,
+    "fields": {
+      "name_bs": "Poskok",
+      "name_en": "Nose-horned viper",
+      "slug": "poskok",
+      "created_at": "2026-06-04T14:25:13.510Z",
+      "updated_at": "2026-06-04T14:25:13.510Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 51,
+    "fields": {
+      "name_bs": "Bjelouška",
+      "name_en": "Grass snake",
+      "slug": "bjelouska",
+      "created_at": "2026-06-04T14:25:13.516Z",
+      "updated_at": "2026-06-04T14:25:13.516Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 52,
+    "fields": {
+      "name_bs": "Gušteri",
+      "name_en": "Lizards",
+      "slug": "gusteri",
+      "created_at": "2026-06-04T14:25:13.519Z",
+      "updated_at": "2026-06-04T14:25:13.519Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 53,
+    "fields": {
+      "name_bs": "Zelembać",
+      "name_en": "Green lizard",
+      "slug": "zelembac",
+      "created_at": "2026-06-04T14:25:13.525Z",
+      "updated_at": "2026-06-04T14:25:13.525Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 54,
+    "fields": {
+      "name_bs": "Žabe",
+      "name_en": "Frogs",
+      "slug": "zabe",
+      "created_at": "2026-06-04T14:25:13.530Z",
+      "updated_at": "2026-06-04T14:25:13.530Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 55,
+    "fields": {
+      "name_bs": "Krastače",
+      "name_en": "Toads",
+      "slug": "krastace",
+      "created_at": "2026-06-04T14:25:13.533Z",
+      "updated_at": "2026-06-04T14:25:13.533Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 56,
+    "fields": {
+      "name_bs": "Daždevnjak",
+      "name_en": "Salamander",
+      "slug": "dazdevnjak",
+      "created_at": "2026-06-04T14:25:13.538Z",
+      "updated_at": "2026-06-04T14:25:13.538Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 57,
+    "fields": {
+      "name_bs": "Crni daždevnjak",
+      "name_en": "Black salamander",
+      "slug": "crni-dazdevnjak",
+      "created_at": "2026-06-04T14:25:13.543Z",
+      "updated_at": "2026-06-04T14:25:13.543Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 58,
+    "fields": {
+      "name_bs": "Vodenjak",
+      "name_en": "Newt",
+      "slug": "vodenjak",
+      "created_at": "2026-06-04T14:25:13.548Z",
+      "updated_at": "2026-06-04T14:25:13.548Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 59,
+    "fields": {
+      "name_bs": "Pastrmka",
+      "name_en": "Trout",
+      "slug": "pastrmka",
+      "created_at": "2026-06-04T14:25:13.555Z",
+      "updated_at": "2026-06-04T14:25:13.555Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 60,
+    "fields": {
+      "name_bs": "Lipljen",
+      "name_en": "Grayling",
+      "slug": "lipljen",
+      "created_at": "2026-06-04T14:25:13.567Z",
+      "updated_at": "2026-06-04T14:25:13.567Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 61,
+    "fields": {
+      "name_bs": "Mladica",
+      "name_en": "Huchen",
+      "slug": "mladica",
+      "created_at": "2026-06-04T14:25:13.571Z",
+      "updated_at": "2026-06-04T14:25:13.571Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 62,
+    "fields": {
+      "name_bs": "Klen",
+      "name_en": "Chub",
+      "slug": "klen",
+      "created_at": "2026-06-04T14:25:13.575Z",
+      "updated_at": "2026-06-04T14:25:13.575Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 63,
+    "fields": {
+      "name_bs": "Mrena",
+      "name_en": "Barbel",
+      "slug": "mrena",
+      "created_at": "2026-06-04T14:25:13.589Z",
+      "updated_at": "2026-06-04T14:25:13.589Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 64,
+    "fields": {
+      "name_bs": "Riječne životinje",
+      "name_en": "River animals",
+      "slug": "rijecne-zivotinje",
+      "created_at": "2026-06-04T14:25:13.596Z",
+      "updated_at": "2026-06-04T14:25:13.596Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 65,
+    "fields": {
+      "name_bs": "Pčele",
+      "name_en": "Bees",
+      "slug": "pcele",
+      "created_at": "2026-06-04T14:25:13.601Z",
+      "updated_at": "2026-06-04T14:25:13.601Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 66,
+    "fields": {
+      "name_bs": "Bumbari",
+      "name_en": "Bumblebees",
+      "slug": "bumbari",
+      "created_at": "2026-06-04T14:25:13.607Z",
+      "updated_at": "2026-06-04T14:25:13.607Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 67,
+    "fields": {
+      "name_bs": "Vilin konjic",
+      "name_en": "Dragonfly",
+      "slug": "vilin-konjic",
+      "created_at": "2026-06-04T14:25:13.610Z",
+      "updated_at": "2026-06-04T14:25:13.610Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 68,
+    "fields": {
+      "name_bs": "Mravi",
+      "name_en": "Ants",
+      "slug": "mravi",
+      "created_at": "2026-06-04T14:25:13.614Z",
+      "updated_at": "2026-06-04T14:25:13.614Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 69,
+    "fields": {
+      "name_bs": "Skakavci",
+      "name_en": "Grasshoppers",
+      "slug": "skakavci",
+      "created_at": "2026-06-04T14:25:13.619Z",
+      "updated_at": "2026-06-04T14:25:13.619Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 70,
+    "fields": {
+      "name_bs": "Bube",
+      "name_en": "Beetles",
+      "slug": "bube",
+      "created_at": "2026-06-04T14:25:13.623Z",
+      "updated_at": "2026-06-04T14:25:13.623Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 71,
+    "fields": {
+      "name_bs": "Paukovi",
+      "name_en": "Spiders",
+      "slug": "paukovi",
+      "created_at": "2026-06-04T14:25:13.630Z",
+      "updated_at": "2026-06-04T14:25:13.630Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 72,
+    "fields": {
+      "name_bs": "Puževi",
+      "name_en": "Snails",
+      "slug": "puzevi",
+      "created_at": "2026-06-04T14:25:13.634Z",
+      "updated_at": "2026-06-04T14:25:13.634Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 73,
+    "fields": {
+      "name_bs": "Šuma",
+      "name_en": "Forest",
+      "slug": "suma",
+      "created_at": "2026-06-04T14:25:13.642Z",
+      "updated_at": "2026-06-04T14:25:13.642Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 74,
+    "fields": {
+      "name_bs": "Planina",
+      "name_en": "Mountain",
+      "slug": "planina",
+      "created_at": "2026-06-04T14:25:13.651Z",
+      "updated_at": "2026-06-04T14:25:13.651Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 75,
+    "fields": {
+      "name_bs": "Livada",
+      "name_en": "Meadow",
+      "slug": "livada",
+      "created_at": "2026-06-04T14:25:13.656Z",
+      "updated_at": "2026-06-04T14:25:13.656Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 76,
+    "fields": {
+      "name_bs": "Rijeka",
+      "name_en": "River",
+      "slug": "rijeka",
+      "created_at": "2026-06-04T14:25:13.659Z",
+      "updated_at": "2026-06-04T14:25:13.659Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 77,
+    "fields": {
+      "name_bs": "Potok",
+      "name_en": "Stream",
+      "slug": "potok",
+      "created_at": "2026-06-04T14:25:13.667Z",
+      "updated_at": "2026-06-04T14:25:13.667Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 78,
+    "fields": {
+      "name_bs": "Kanjon",
+      "name_en": "Canyon",
+      "slug": "kanjon",
+      "created_at": "2026-06-04T14:25:13.672Z",
+      "updated_at": "2026-06-04T14:25:13.672Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 79,
+    "fields": {
+      "name_bs": "Pećina",
+      "name_en": "Cave",
+      "slug": "pecina",
+      "created_at": "2026-06-04T14:25:13.678Z",
+      "updated_at": "2026-06-04T14:25:13.678Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 80,
+    "fields": {
+      "name_bs": "Snijeg",
+      "name_en": "Snow",
+      "slug": "snijeg",
+      "created_at": "2026-06-04T14:25:13.683Z",
+      "updated_at": "2026-06-04T14:25:13.683Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 81,
+    "fields": {
+      "name_bs": "Noćni snimci",
+      "name_en": "Night footage",
+      "slug": "nocni-snimci",
+      "created_at": "2026-06-04T14:25:13.688Z",
+      "updated_at": "2026-06-04T14:25:13.688Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 82,
+    "fields": {
+      "name_bs": "Jutarnji snimci",
+      "name_en": "Morning footage",
+      "slug": "jutarnji-snimci",
+      "created_at": "2026-06-04T14:25:13.695Z",
+      "updated_at": "2026-06-04T14:25:13.695Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 83,
+    "fields": {
+      "name_bs": "Hranjenje",
+      "name_en": "Feeding",
+      "slug": "hranjenje",
+      "created_at": "2026-06-04T14:25:13.700Z",
+      "updated_at": "2026-06-04T14:25:13.700Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 84,
+    "fields": {
+      "name_bs": "Mladunčad",
+      "name_en": "Young animals",
+      "slug": "mladuncad",
+      "created_at": "2026-06-04T14:25:13.705Z",
+      "updated_at": "2026-06-04T14:25:13.705Z"
+    }
+  },
+  {
+    "model": "gallery.tag",
+    "pk": 85,
+    "fields": {
+      "name_bs": "Migracija",
+      "name_en": "Migration",
+      "slug": "migracija",
+      "created_at": "2026-06-04T14:25:13.710Z",
+      "updated_at": "2026-06-04T14:25:13.710Z"
+    }
   }
-},
-{
-  "model": "gallery.album",
-  "pk": 2,
-  "fields": {
-    "title": "",
-    "slug": "ris",
-    "gallery_type": "video",
-    "description": "",
-    "is_published": true,
-    "display_order": 0,
-    "cover_media": null,
-    "seo_title": "",
-    "seo_description": "",
-    "title_en": "Lynx",
-    "title_bs": "Ris",
-    "description_en": "Wild Cat Lynks",
-    "description_bs": "Divlja macka Ris",
-    "seo_title_en": "",
-    "seo_title_bs": "",
-    "seo_description_en": "",
-    "seo_description_bs": "",
-    "created_at": "2026-06-04T22:37:09.073Z",
-    "updated_at": "2026-06-06T11:25:49.818Z",
-    "tags": [
-      19,
-      13,
-      17
-    ]
-  }
-},
-{
-  "model": "gallery.videoclip",
-  "pk": 1,
-  "fields": {
-    "album": 1,
-    "title_bs": "Vrijeme rucka",
-    "title_en": "Lunch Time",
-    "description_bs": "Majke i prasici na hranjenju",
-    "description_en": "Mothers with piglets",
-    "cloudflare_uid": "dd4aad071bc4206d0d6b7fa81c5af2ad",
-    "cloudflare_thumbnail_url": "https://customer-mhbxkp8fpuv0m566.cloudflarestream.com/dd4aad071bc4206d0d6b7fa81c5af2ad/thumbnails/thumbnail.jpg",
-    "cloudflare_playback_url": "https://customer-mhbxkp8fpuv0m566.cloudflarestream.com/dd4aad071bc4206d0d6b7fa81c5af2ad/iframe",
-    "duration_seconds": 20,
-    "status": "ready",
-    "is_public": true,
-    "created_at": "2026-06-04T12:38:16.291Z",
-    "updated_at": "2026-06-04T14:25:58.951Z",
-    "tags": [
-      1,
-      83,
-      84
-    ]
-  }
-},
-{
-  "model": "gallery.videoclip",
-  "pk": 2,
-  "fields": {
-    "album": 1,
-    "title_bs": "Vrijeme rucka 2",
-    "title_en": "Lunch Time 2",
-    "description_bs": "Majka i prascici u vrijeme rucka",
-    "description_en": "Moms and Piglets",
-    "cloudflare_uid": "1d4cc05add9f44a1986938d7ec790f6c",
-    "cloudflare_thumbnail_url": "https://customer-mhbxkp8fpuv0m566.cloudflarestream.com/1d4cc05add9f44a1986938d7ec790f6c/thumbnails/thumbnail.jpg",
-    "cloudflare_playback_url": "https://customer-mhbxkp8fpuv0m566.cloudflarestream.com/1d4cc05add9f44a1986938d7ec790f6c/iframe",
-    "duration_seconds": 20,
-    "status": "ready",
-    "is_public": true,
-    "created_at": "2026-06-04T12:41:55.941Z",
-    "updated_at": "2026-06-04T14:25:40.969Z",
-    "tags": [
-      23,
-      83
-    ]
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 1,
-  "fields": {
-    "name_bs": "Divlje Svinje",
-    "name_en": "Wild Boars",
-    "slug": "divlje-svinje",
-    "created_at": "2026-06-04T14:07:17.824Z",
-    "updated_at": "2026-06-04T14:07:17.824Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 2,
-  "fields": {
-    "name_bs": "Sisari",
-    "name_en": "Mammals",
-    "slug": "sisari",
-    "created_at": "2026-06-04T14:25:13.236Z",
-    "updated_at": "2026-06-04T14:25:13.236Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 3,
-  "fields": {
-    "name_bs": "Ptice",
-    "name_en": "Birds",
-    "slug": "ptice",
-    "created_at": "2026-06-04T14:25:13.245Z",
-    "updated_at": "2026-06-04T14:25:13.245Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 4,
-  "fields": {
-    "name_bs": "Grabljivice",
-    "name_en": "Raptors",
-    "slug": "grabljivice",
-    "created_at": "2026-06-04T14:25:13.250Z",
-    "updated_at": "2026-06-04T14:25:13.250Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 5,
-  "fields": {
-    "name_bs": "Sove",
-    "name_en": "Owls",
-    "slug": "sove",
-    "created_at": "2026-06-04T14:25:13.255Z",
-    "updated_at": "2026-06-04T14:25:13.255Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 6,
-  "fields": {
-    "name_bs": "Vodene ptice",
-    "name_en": "Water birds",
-    "slug": "vodene-ptice",
-    "created_at": "2026-06-04T14:25:13.262Z",
-    "updated_at": "2026-06-04T14:25:13.262Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 7,
-  "fields": {
-    "name_bs": "Gmizavci",
-    "name_en": "Reptiles",
-    "slug": "gmizavci",
-    "created_at": "2026-06-04T14:25:13.267Z",
-    "updated_at": "2026-06-04T14:25:13.267Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 8,
-  "fields": {
-    "name_bs": "Vodozemci",
-    "name_en": "Amphibians",
-    "slug": "vodozemci",
-    "created_at": "2026-06-04T14:25:13.271Z",
-    "updated_at": "2026-06-04T14:25:13.271Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 9,
-  "fields": {
-    "name_bs": "Ribe",
-    "name_en": "Fish",
-    "slug": "ribe",
-    "created_at": "2026-06-04T14:25:13.275Z",
-    "updated_at": "2026-06-04T14:25:13.275Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 10,
-  "fields": {
-    "name_bs": "Insekti",
-    "name_en": "Insects",
-    "slug": "insekti",
-    "created_at": "2026-06-04T14:25:13.281Z",
-    "updated_at": "2026-06-04T14:25:13.281Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 11,
-  "fields": {
-    "name_bs": "Leptiri",
-    "name_en": "Butterflies",
-    "slug": "leptiri",
-    "created_at": "2026-06-04T14:25:13.291Z",
-    "updated_at": "2026-06-04T14:25:13.291Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 12,
-  "fields": {
-    "name_bs": "┼áumske ┼¥ivotinje",
-    "name_en": "Forest animals",
-    "slug": "sumske-zivotinje",
-    "created_at": "2026-06-04T14:25:13.296Z",
-    "updated_at": "2026-06-04T14:25:13.296Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 13,
-  "fields": {
-    "name_bs": "No─çne ┼¥ivotinje",
-    "name_en": "Nocturnal animals",
-    "slug": "nocne-zivotinje",
-    "created_at": "2026-06-04T14:25:13.301Z",
-    "updated_at": "2026-06-04T14:25:13.301Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 14,
-  "fields": {
-    "name_bs": "Tragovi ┼¥ivotinja",
-    "name_en": "Animal tracks",
-    "slug": "tragovi-zivotinja",
-    "created_at": "2026-06-04T14:25:13.306Z",
-    "updated_at": "2026-06-04T14:25:13.306Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 15,
-  "fields": {
-    "name_bs": "Sme─æi medvjed",
-    "name_en": "Brown bear",
-    "slug": "smedi-medvjed",
-    "created_at": "2026-06-04T14:25:13.310Z",
-    "updated_at": "2026-06-04T14:25:13.310Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 16,
-  "fields": {
-    "name_bs": "Vuk",
-    "name_en": "Wolf",
-    "slug": "vuk",
-    "created_at": "2026-06-04T14:25:13.317Z",
-    "updated_at": "2026-06-04T14:25:13.317Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 17,
-  "fields": {
-    "name_bs": "Ris",
-    "name_en": "Eurasian lynx",
-    "slug": "ris",
-    "created_at": "2026-06-04T14:25:13.321Z",
-    "updated_at": "2026-06-04T14:25:13.321Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 18,
-  "fields": {
-    "name_bs": "Lisica",
-    "name_en": "Red fox",
-    "slug": "lisica",
-    "created_at": "2026-06-04T14:25:13.327Z",
-    "updated_at": "2026-06-04T14:25:13.327Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 19,
-  "fields": {
-    "name_bs": "Divlja ma─ìka",
-    "name_en": "Wildcat",
-    "slug": "divlja-macka",
-    "created_at": "2026-06-04T14:25:13.332Z",
-    "updated_at": "2026-06-04T14:25:13.332Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 20,
-  "fields": {
-    "name_bs": "Jazavac",
-    "name_en": "Badger",
-    "slug": "jazavac",
-    "created_at": "2026-06-04T14:25:13.337Z",
-    "updated_at": "2026-06-04T14:25:13.337Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 21,
-  "fields": {
-    "name_bs": "Kuna",
-    "name_en": "Marten",
-    "slug": "kuna",
-    "created_at": "2026-06-04T14:25:13.343Z",
-    "updated_at": "2026-06-04T14:25:13.343Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 22,
-  "fields": {
-    "name_bs": "Vidra",
-    "name_en": "Otter",
-    "slug": "vidra",
-    "created_at": "2026-06-04T14:25:13.350Z",
-    "updated_at": "2026-06-04T14:25:13.350Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 23,
-  "fields": {
-    "name_bs": "Divlja svinja",
-    "name_en": "Wild boar",
-    "slug": "divlja-svinja",
-    "created_at": "2026-06-04T14:25:13.360Z",
-    "updated_at": "2026-06-04T14:25:13.360Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 24,
-  "fields": {
-    "name_bs": "Srna",
-    "name_en": "Roe deer",
-    "slug": "srna",
-    "created_at": "2026-06-04T14:25:13.365Z",
-    "updated_at": "2026-06-04T14:25:13.365Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 25,
-  "fields": {
-    "name_bs": "Jelen",
-    "name_en": "Red deer",
-    "slug": "jelen",
-    "created_at": "2026-06-04T14:25:13.369Z",
-    "updated_at": "2026-06-04T14:25:13.369Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 26,
-  "fields": {
-    "name_bs": "Divokoza",
-    "name_en": "Chamois",
-    "slug": "divokoza",
-    "created_at": "2026-06-04T14:25:13.374Z",
-    "updated_at": "2026-06-04T14:25:13.374Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 27,
-  "fields": {
-    "name_bs": "Zec",
-    "name_en": "Hare",
-    "slug": "zec",
-    "created_at": "2026-06-04T14:25:13.383Z",
-    "updated_at": "2026-06-04T14:25:13.383Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 28,
-  "fields": {
-    "name_bs": "Vjeverica",
-    "name_en": "Squirrel",
-    "slug": "vjeverica",
-    "created_at": "2026-06-04T14:25:13.386Z",
-    "updated_at": "2026-06-04T14:25:13.386Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 29,
-  "fields": {
-    "name_bs": "Je┼¥",
-    "name_en": "Hedgehog",
-    "slug": "jez",
-    "created_at": "2026-06-04T14:25:13.392Z",
-    "updated_at": "2026-06-04T14:25:13.392Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 30,
-  "fields": {
-    "name_bs": "┼ái┼ími┼íi",
-    "name_en": "Bats",
-    "slug": "sismisi",
-    "created_at": "2026-06-04T14:25:13.396Z",
-    "updated_at": "2026-06-04T14:25:13.396Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 31,
-  "fields": {
-    "name_bs": "Orao",
-    "name_en": "Eagle",
-    "slug": "orao",
-    "created_at": "2026-06-04T14:25:13.406Z",
-    "updated_at": "2026-06-04T14:25:13.406Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 32,
-  "fields": {
-    "name_bs": "Sokol",
-    "name_en": "Falcon",
-    "slug": "sokol",
-    "created_at": "2026-06-04T14:25:13.412Z",
-    "updated_at": "2026-06-04T14:25:13.412Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 33,
-  "fields": {
-    "name_bs": "Jastreb",
-    "name_en": "Hawk",
-    "slug": "jastreb",
-    "created_at": "2026-06-04T14:25:13.418Z",
-    "updated_at": "2026-06-04T14:25:13.418Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 34,
-  "fields": {
-    "name_bs": "Mi┼íar",
-    "name_en": "Buzzard",
-    "slug": "misar",
-    "created_at": "2026-06-04T14:25:13.423Z",
-    "updated_at": "2026-06-04T14:25:13.423Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 35,
-  "fields": {
-    "name_bs": "Kobac",
-    "name_en": "Sparrowhawk",
-    "slug": "kobac",
-    "created_at": "2026-06-04T14:25:13.428Z",
-    "updated_at": "2026-06-04T14:25:13.428Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 36,
-  "fields": {
-    "name_bs": "Sova",
-    "name_en": "Owl",
-    "slug": "sova",
-    "created_at": "2026-06-04T14:25:13.432Z",
-    "updated_at": "2026-06-04T14:25:13.432Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 37,
-  "fields": {
-    "name_bs": "─åuk",
-    "name_en": "Little owl",
-    "slug": "cuk",
-    "created_at": "2026-06-04T14:25:13.436Z",
-    "updated_at": "2026-06-04T14:25:13.436Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 38,
-  "fields": {
-    "name_bs": "Djetli─ç",
-    "name_en": "Woodpecker",
-    "slug": "djetlic",
-    "created_at": "2026-06-04T14:25:13.440Z",
-    "updated_at": "2026-06-04T14:25:13.440Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 39,
-  "fields": {
-    "name_bs": "Vrana",
-    "name_en": "Crow",
-    "slug": "vrana",
-    "created_at": "2026-06-04T14:25:13.444Z",
-    "updated_at": "2026-06-04T14:25:13.444Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 40,
-  "fields": {
-    "name_bs": "Gavran",
-    "name_en": "Raven",
-    "slug": "gavran",
-    "created_at": "2026-06-04T14:25:13.448Z",
-    "updated_at": "2026-06-04T14:25:13.448Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 41,
-  "fields": {
-    "name_bs": "Svraka",
-    "name_en": "Magpie",
-    "slug": "svraka",
-    "created_at": "2026-06-04T14:25:13.452Z",
-    "updated_at": "2026-06-04T14:25:13.452Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 42,
-  "fields": {
-    "name_bs": "Sjenica",
-    "name_en": "Tit",
-    "slug": "sjenica",
-    "created_at": "2026-06-04T14:25:13.465Z",
-    "updated_at": "2026-06-04T14:25:13.465Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 43,
-  "fields": {
-    "name_bs": "Crvenda─ç",
-    "name_en": "Robin",
-    "slug": "crvendac",
-    "created_at": "2026-06-04T14:25:13.471Z",
-    "updated_at": "2026-06-04T14:25:13.471Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 44,
-  "fields": {
-    "name_bs": "Kos",
-    "name_en": "Blackbird",
-    "slug": "kos",
-    "created_at": "2026-06-04T14:25:13.475Z",
-    "updated_at": "2026-06-04T14:25:13.475Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 45,
-  "fields": {
-    "name_bs": "Drozd",
-    "name_en": "Thrush",
-    "slug": "drozd",
-    "created_at": "2026-06-04T14:25:13.480Z",
-    "updated_at": "2026-06-04T14:25:13.480Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 46,
-  "fields": {
-    "name_bs": "─îaplja",
-    "name_en": "Heron",
-    "slug": "caplja",
-    "created_at": "2026-06-04T14:25:13.487Z",
-    "updated_at": "2026-06-04T14:25:13.487Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 47,
-  "fields": {
-    "name_bs": "Patka",
-    "name_en": "Duck",
-    "slug": "patka",
-    "created_at": "2026-06-04T14:25:13.490Z",
-    "updated_at": "2026-06-04T14:25:13.490Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 48,
-  "fields": {
-    "name_bs": "Vodomar",
-    "name_en": "Kingfisher",
-    "slug": "vodomar",
-    "created_at": "2026-06-04T14:25:13.496Z",
-    "updated_at": "2026-06-04T14:25:13.496Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 49,
-  "fields": {
-    "name_bs": "Zmije",
-    "name_en": "Snakes",
-    "slug": "zmije",
-    "created_at": "2026-06-04T14:25:13.503Z",
-    "updated_at": "2026-06-04T14:25:13.504Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 50,
-  "fields": {
-    "name_bs": "Poskok",
-    "name_en": "Nose-horned viper",
-    "slug": "poskok",
-    "created_at": "2026-06-04T14:25:13.510Z",
-    "updated_at": "2026-06-04T14:25:13.510Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 51,
-  "fields": {
-    "name_bs": "Bjelou┼íka",
-    "name_en": "Grass snake",
-    "slug": "bjelouska",
-    "created_at": "2026-06-04T14:25:13.516Z",
-    "updated_at": "2026-06-04T14:25:13.516Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 52,
-  "fields": {
-    "name_bs": "Gu┼íteri",
-    "name_en": "Lizards",
-    "slug": "gusteri",
-    "created_at": "2026-06-04T14:25:13.519Z",
-    "updated_at": "2026-06-04T14:25:13.519Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 53,
-  "fields": {
-    "name_bs": "Zelemba─ç",
-    "name_en": "Green lizard",
-    "slug": "zelembac",
-    "created_at": "2026-06-04T14:25:13.525Z",
-    "updated_at": "2026-06-04T14:25:13.525Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 54,
-  "fields": {
-    "name_bs": "┼¢abe",
-    "name_en": "Frogs",
-    "slug": "zabe",
-    "created_at": "2026-06-04T14:25:13.530Z",
-    "updated_at": "2026-06-04T14:25:13.530Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 55,
-  "fields": {
-    "name_bs": "Krasta─ìe",
-    "name_en": "Toads",
-    "slug": "krastace",
-    "created_at": "2026-06-04T14:25:13.533Z",
-    "updated_at": "2026-06-04T14:25:13.533Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 56,
-  "fields": {
-    "name_bs": "Da┼¥devnjak",
-    "name_en": "Salamander",
-    "slug": "dazdevnjak",
-    "created_at": "2026-06-04T14:25:13.538Z",
-    "updated_at": "2026-06-04T14:25:13.538Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 57,
-  "fields": {
-    "name_bs": "Crni da┼¥devnjak",
-    "name_en": "Black salamander",
-    "slug": "crni-dazdevnjak",
-    "created_at": "2026-06-04T14:25:13.543Z",
-    "updated_at": "2026-06-04T14:25:13.543Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 58,
-  "fields": {
-    "name_bs": "Vodenjak",
-    "name_en": "Newt",
-    "slug": "vodenjak",
-    "created_at": "2026-06-04T14:25:13.548Z",
-    "updated_at": "2026-06-04T14:25:13.548Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 59,
-  "fields": {
-    "name_bs": "Pastrmka",
-    "name_en": "Trout",
-    "slug": "pastrmka",
-    "created_at": "2026-06-04T14:25:13.555Z",
-    "updated_at": "2026-06-04T14:25:13.555Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 60,
-  "fields": {
-    "name_bs": "Lipljen",
-    "name_en": "Grayling",
-    "slug": "lipljen",
-    "created_at": "2026-06-04T14:25:13.567Z",
-    "updated_at": "2026-06-04T14:25:13.567Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 61,
-  "fields": {
-    "name_bs": "Mladica",
-    "name_en": "Huchen",
-    "slug": "mladica",
-    "created_at": "2026-06-04T14:25:13.571Z",
-    "updated_at": "2026-06-04T14:25:13.571Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 62,
-  "fields": {
-    "name_bs": "Klen",
-    "name_en": "Chub",
-    "slug": "klen",
-    "created_at": "2026-06-04T14:25:13.575Z",
-    "updated_at": "2026-06-04T14:25:13.575Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 63,
-  "fields": {
-    "name_bs": "Mrena",
-    "name_en": "Barbel",
-    "slug": "mrena",
-    "created_at": "2026-06-04T14:25:13.589Z",
-    "updated_at": "2026-06-04T14:25:13.589Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 64,
-  "fields": {
-    "name_bs": "Rije─ìne ┼¥ivotinje",
-    "name_en": "River animals",
-    "slug": "rijecne-zivotinje",
-    "created_at": "2026-06-04T14:25:13.596Z",
-    "updated_at": "2026-06-04T14:25:13.596Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 65,
-  "fields": {
-    "name_bs": "P─ìele",
-    "name_en": "Bees",
-    "slug": "pcele",
-    "created_at": "2026-06-04T14:25:13.601Z",
-    "updated_at": "2026-06-04T14:25:13.601Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 66,
-  "fields": {
-    "name_bs": "Bumbari",
-    "name_en": "Bumblebees",
-    "slug": "bumbari",
-    "created_at": "2026-06-04T14:25:13.607Z",
-    "updated_at": "2026-06-04T14:25:13.607Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 67,
-  "fields": {
-    "name_bs": "Vilin konjic",
-    "name_en": "Dragonfly",
-    "slug": "vilin-konjic",
-    "created_at": "2026-06-04T14:25:13.610Z",
-    "updated_at": "2026-06-04T14:25:13.610Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 68,
-  "fields": {
-    "name_bs": "Mravi",
-    "name_en": "Ants",
-    "slug": "mravi",
-    "created_at": "2026-06-04T14:25:13.614Z",
-    "updated_at": "2026-06-04T14:25:13.614Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 69,
-  "fields": {
-    "name_bs": "Skakavci",
-    "name_en": "Grasshoppers",
-    "slug": "skakavci",
-    "created_at": "2026-06-04T14:25:13.619Z",
-    "updated_at": "2026-06-04T14:25:13.619Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 70,
-  "fields": {
-    "name_bs": "Bube",
-    "name_en": "Beetles",
-    "slug": "bube",
-    "created_at": "2026-06-04T14:25:13.623Z",
-    "updated_at": "2026-06-04T14:25:13.623Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 71,
-  "fields": {
-    "name_bs": "Paukovi",
-    "name_en": "Spiders",
-    "slug": "paukovi",
-    "created_at": "2026-06-04T14:25:13.630Z",
-    "updated_at": "2026-06-04T14:25:13.630Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 72,
-  "fields": {
-    "name_bs": "Pu┼¥evi",
-    "name_en": "Snails",
-    "slug": "puzevi",
-    "created_at": "2026-06-04T14:25:13.634Z",
-    "updated_at": "2026-06-04T14:25:13.634Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 73,
-  "fields": {
-    "name_bs": "┼áuma",
-    "name_en": "Forest",
-    "slug": "suma",
-    "created_at": "2026-06-04T14:25:13.642Z",
-    "updated_at": "2026-06-04T14:25:13.642Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 74,
-  "fields": {
-    "name_bs": "Planina",
-    "name_en": "Mountain",
-    "slug": "planina",
-    "created_at": "2026-06-04T14:25:13.651Z",
-    "updated_at": "2026-06-04T14:25:13.651Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 75,
-  "fields": {
-    "name_bs": "Livada",
-    "name_en": "Meadow",
-    "slug": "livada",
-    "created_at": "2026-06-04T14:25:13.656Z",
-    "updated_at": "2026-06-04T14:25:13.656Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 76,
-  "fields": {
-    "name_bs": "Rijeka",
-    "name_en": "River",
-    "slug": "rijeka",
-    "created_at": "2026-06-04T14:25:13.659Z",
-    "updated_at": "2026-06-04T14:25:13.659Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 77,
-  "fields": {
-    "name_bs": "Potok",
-    "name_en": "Stream",
-    "slug": "potok",
-    "created_at": "2026-06-04T14:25:13.667Z",
-    "updated_at": "2026-06-04T14:25:13.667Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 78,
-  "fields": {
-    "name_bs": "Kanjon",
-    "name_en": "Canyon",
-    "slug": "kanjon",
-    "created_at": "2026-06-04T14:25:13.672Z",
-    "updated_at": "2026-06-04T14:25:13.672Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 79,
-  "fields": {
-    "name_bs": "Pe─çina",
-    "name_en": "Cave",
-    "slug": "pecina",
-    "created_at": "2026-06-04T14:25:13.678Z",
-    "updated_at": "2026-06-04T14:25:13.678Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 80,
-  "fields": {
-    "name_bs": "Snijeg",
-    "name_en": "Snow",
-    "slug": "snijeg",
-    "created_at": "2026-06-04T14:25:13.683Z",
-    "updated_at": "2026-06-04T14:25:13.683Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 81,
-  "fields": {
-    "name_bs": "No─çni snimci",
-    "name_en": "Night footage",
-    "slug": "nocni-snimci",
-    "created_at": "2026-06-04T14:25:13.688Z",
-    "updated_at": "2026-06-04T14:25:13.688Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 82,
-  "fields": {
-    "name_bs": "Jutarnji snimci",
-    "name_en": "Morning footage",
-    "slug": "jutarnji-snimci",
-    "created_at": "2026-06-04T14:25:13.695Z",
-    "updated_at": "2026-06-04T14:25:13.695Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 83,
-  "fields": {
-    "name_bs": "Hranjenje",
-    "name_en": "Feeding",
-    "slug": "hranjenje",
-    "created_at": "2026-06-04T14:25:13.700Z",
-    "updated_at": "2026-06-04T14:25:13.700Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 84,
-  "fields": {
-    "name_bs": "Mladun─ìad",
-    "name_en": "Young animals",
-    "slug": "mladuncad",
-    "created_at": "2026-06-04T14:25:13.705Z",
-    "updated_at": "2026-06-04T14:25:13.705Z"
-  }
-},
-{
-  "model": "gallery.tag",
-  "pk": 85,
-  "fields": {
-    "name_bs": "Migracija",
-    "name_en": "Migration",
-    "slug": "migracija",
-    "created_at": "2026-06-04T14:25:13.710Z",
-    "updated_at": "2026-06-04T14:25:13.710Z"
-  }
-}
 ]
