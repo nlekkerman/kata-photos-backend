@@ -108,6 +108,22 @@ Both serializers reuse the existing `resolve_translated` helper and `TagSerializ
 
 ---
 
+## Frontend Notes
+
+### 1. Description Source
+
+Use `description` from the public video detail response.
+
+Important:
+
+- `PublicVideoCardSerializer` does not include description.
+- `PublicVideoDetailSerializer` includes language-resolved `description`.
+- Do not use raw `description_bs` / `description_en` on public frontend because public detail already resolves language.
+- Do not change backend serializer shape.
+- If current player only has card data, fetch the detail endpoint before rendering the banner.
+
+---
+
 ## Pagination Behavior
 
 `PublicVideoCursorPagination` added to `gallery/views.py`:

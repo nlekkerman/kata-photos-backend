@@ -62,6 +62,63 @@ from .serializers import (
 _ALLOWED_LANGS = ('en', 'bs')
 
 
+def _translate_and_save_visitor_message(instance):
+    """
+    Attempt Bosnian translation of visitor message subject/message.
+    Updates only translation fields via a narrow save; never touches original text.
+    """
+    from .services.translation import translate_texts_to_bosnian
+
+    to_translate = {}
+    if instance.subject and instance.subject.strip():
+        to_translate['subject'] = instance.subject
+    if instance.message and instance.message.strip():
+        to_translate['message'] = instance.message
+
+    if not to_translate:
+        instance.translation_status = instance.TRANSLATION_SKIPPED
+        instance.save(update_fields=['translation_status'])
+        return
+
+    translated, t_status, t_error = translate_texts_to_bosnian(to_translate)
+    update_fields = ['translation_status', 'translation_error']
+    instance.translation_status = t_status
+    instance.translation_error = t_error
+
+    if 'subject' in translated:
+        instance.subject_bs = translated['subject']
+        update_fields.append('subject_bs')
+    if 'message' in translated:
+        instance.message_bs = translated['message']
+        update_fields.append('message_bs')
+
+    instance.save(update_fields=update_fields)
+
+
+def _translate_and_save_comment(instance):
+    """
+    Attempt Bosnian translation of a VideoTimestampComment's text.
+    Updates only translation fields via a narrow save; never touches original text.
+    """
+    from .services.translation import translate_texts_to_bosnian
+
+    if not instance.text or not instance.text.strip():
+        instance.translation_status = instance.TRANSLATION_SKIPPED
+        instance.save(update_fields=['translation_status'])
+        return
+
+    translated, t_status, t_error = translate_texts_to_bosnian({'text': instance.text})
+    update_fields = ['translation_status', 'translation_error']
+    instance.translation_status = t_status
+    instance.translation_error = t_error
+
+    if 'text' in translated:
+        instance.text_bs = translated['text']
+        update_fields.append('text_bs')
+
+    instance.save(update_fields=update_fields)
+
+
 class LangContextMixin:
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -1063,6 +1120,10 @@ class VisitorMessageCreateView(generics.CreateAPIView):
     serializer_class = VisitorMessageCreateSerializer
     queryset = VisitorMessage.objects.none()
 
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        _translate_and_save_visitor_message(instance)
+
 
 class PublicCommentCursorPagination(CursorPagination):
     """Stable cursor pagination for public approved video timestamp comments."""
@@ -1101,7 +1162,8 @@ class VideoTimestampCommentListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         video = generics.get_object_or_404(VideoClip, pk=self.kwargs['video_pk'])
-        serializer.save(video=video, status=VideoTimestampComment.STATUS_PENDING)
+        instance = serializer.save(video=video, status=VideoTimestampComment.STATUS_PENDING)
+        _translate_and_save_comment(instance)
 
 
 class VisitorMessageReplyView(generics.GenericAPIView):

@@ -266,10 +266,19 @@ class VisitorMessage(models.Model):
         (STATUS_ARCHIVED, 'Archived'),
     ]
 
+    TRANSLATION_PENDING = 'pending'
+    TRANSLATION_TRANSLATED = 'translated'
+    TRANSLATION_SKIPPED = 'skipped'
+    TRANSLATION_FAILED = 'failed'
+
     sender_name = models.CharField(max_length=120)
     sender_email = models.EmailField(max_length=254)
     subject = models.CharField(max_length=180)
     message = models.TextField()
+    subject_bs = models.CharField(max_length=180, blank=True, default="")
+    message_bs = models.TextField(blank=True, default="")
+    translation_status = models.CharField(max_length=32, blank=True, default="")
+    translation_error = models.TextField(blank=True, default="")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_NEW)
     video = models.ForeignKey(
         'VideoClip',
@@ -337,9 +346,17 @@ class VideoTimestampComment(models.Model):
         on_delete=models.CASCADE,
         related_name='timestamp_comments',
     )
+    TRANSLATION_PENDING = 'pending'
+    TRANSLATION_TRANSLATED = 'translated'
+    TRANSLATION_SKIPPED = 'skipped'
+    TRANSLATION_FAILED = 'failed'
+
     author_name = models.CharField(max_length=120)
     author_email = models.EmailField(max_length=254)
     text = models.TextField()
+    text_bs = models.TextField(blank=True, default="")
+    translation_status = models.CharField(max_length=32, blank=True, default="")
+    translation_error = models.TextField(blank=True, default="")
     timestamp_seconds = models.PositiveIntegerField()
     status = models.CharField(
         max_length=10,
