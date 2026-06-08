@@ -1183,6 +1183,8 @@ class VisitorMessageReplyView(generics.GenericAPIView):
         from django.core.mail import send_mail
         from django.utils import timezone as tz
 
+        from .services.visitor_reply import prepare_visitor_reply_for_email
+
         message = generics.get_object_or_404(VisitorMessage, pk=pk)
 
         if not message.sender_email:
@@ -1196,8 +1198,11 @@ class VisitorMessageReplyView(generics.GenericAPIView):
         reply_subject = serializer.validated_data['reply_subject']
         reply_body = serializer.validated_data['reply_body']
 
-        # Build plain-text email body: reply first, then quoted original message.
-        lines = [reply_body, '', '---', '']
+        # Decide whether translation is needed; never raises.
+        prepared = prepare_visitor_reply_for_email(message, reply_body)
+
+        # Build plain-text email body: translated/prepared reply first, then quoted original.
+        lines = [prepared.body_to_send, '', '---', '']
         lines.append(f'Original message from {message.sender_name}:')
         lines.append(f'Subject: {message.subject}')
         if message.video_id:
@@ -1237,15 +1242,34 @@ class VisitorMessageReplyView(generics.GenericAPIView):
         message.replied_at = now
         message.save(update_fields=['status', 'replied_at', 'updated_at'])
 
-        VisitorMessageReply.objects.create(
+        reply = VisitorMessageReply.objects.create(
             visitor_message=message,
             reply_subject=reply_subject,
             reply_body=reply_body,
             sent_by=request.user,
+            original_reply_body=reply_body,
+            sent_reply_body=prepared.body_to_send,
+            visitor_language=prepared.visitor_language,
+            reply_language=prepared.reply_language,
+            translation_applied=prepared.translation_applied,
+            translation_skipped_reason=prepared.translation_skipped_reason,
+            translation_error=prepared.translation_error,
         )
 
         return Response(
-            {'detail': 'Reply sent.', 'replied_at': message.replied_at},
+            {
+                'detail': 'Reply sent.',
+                'replied_at': message.replied_at,
+                'id': reply.pk,
+                'body': reply.reply_body,
+                'original_reply_body': reply.original_reply_body,
+                'sent_reply_body': reply.sent_reply_body,
+                'visitor_language': reply.visitor_language,
+                'reply_language': reply.reply_language,
+                'translation_applied': reply.translation_applied,
+                'translation_skipped_reason': reply.translation_skipped_reason,
+                'translation_error': reply.translation_error,
+            },
             status=status.HTTP_200_OK,
         )
 

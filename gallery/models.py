@@ -320,6 +320,14 @@ class VisitorMessageReply(models.Model):
         on_delete=models.SET_NULL,
         related_name='visitor_message_replies',
     )
+    # Translation audit fields
+    original_reply_body = models.TextField(blank=True, default='')
+    sent_reply_body = models.TextField(blank=True, default='')
+    visitor_language = models.CharField(max_length=16, blank=True, default='')
+    reply_language = models.CharField(max_length=16, blank=True, default='')
+    translation_applied = models.BooleanField(default=False)
+    translation_skipped_reason = models.CharField(max_length=120, blank=True, default='')
+    translation_error = models.TextField(blank=True, default='')
 
     class Meta:
         ordering = ['-sent_at']
