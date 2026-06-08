@@ -8,13 +8,14 @@ Endpoints provided:
     PATCH /api/gallery/admin/video-timestamp-comments/<pk>/
 """
 
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import VideoTimestampComment, VisitorMessage
+from .models import AdminNotificationCheckpoint, VideoTimestampComment, VisitorMessage
 from .serializers import (
     AdminVideoTimestampCommentSerializer,
     AdminVideoTimestampCommentStatusSerializer,
@@ -138,6 +139,34 @@ class AdminVideoTimestampCommentDetailView(generics.GenericAPIView):
 
 
 # ---------------------------------------------------------------------------
+# Notification counts helpers
+# ---------------------------------------------------------------------------
+
+def _build_notification_counts(checkpoint):
+    """
+    Return notification count dict based on checkpoint seen timestamps.
+    Counts items created after the seen timestamp; if null, counts all items.
+    """
+    msg_qs = VisitorMessage.objects.all()
+    if checkpoint is not None and checkpoint.messages_seen_at is not None:
+        msg_qs = msg_qs.filter(created_at__gt=checkpoint.messages_seen_at)
+    new_messages = msg_qs.count()
+
+    cmt_qs = VideoTimestampComment.objects.all()
+    if checkpoint is not None and checkpoint.comments_seen_at is not None:
+        cmt_qs = cmt_qs.filter(created_at__gt=checkpoint.comments_seen_at)
+    pending_comments = cmt_qs.count()
+
+    total = new_messages + pending_comments
+    return {
+        'new_messages_count': new_messages,
+        'pending_comments_count': pending_comments,
+        'total_count': total,
+        'has_notifications': total > 0,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Notification counts
 # ---------------------------------------------------------------------------
 
@@ -148,6 +177,10 @@ class AdminNotificationCountsView(APIView):
     Returns aggregate counts for admin UI notification badges.
     Staff/admin only. Never exposes message or comment content.
 
+    Counts are based on items created after the staff user's last seen timestamp
+    for each section. If no checkpoint exists yet (first request), all existing
+    items are counted.
+
     Response shape:
         {
             "new_messages_count": <int>,
@@ -155,26 +188,74 @@ class AdminNotificationCountsView(APIView):
             "total_count": <int>,
             "has_notifications": <bool>
         }
-
-    Counting rules:
-        new_messages_count   — VisitorMessage records where status == STATUS_NEW ('new')
-        pending_comments_count — VideoTimestampComment records where status == STATUS_PENDING ('pending')
     """
 
     permission_classes = [IsAdminUser]
     http_method_names = ['get', 'head', 'options']
 
     def get(self, request):
-        new_messages = VisitorMessage.objects.filter(
-            status=VisitorMessage.STATUS_NEW
-        ).count()
-        pending_comments = VideoTimestampComment.objects.filter(
-            status=VideoTimestampComment.STATUS_PENDING
-        ).count()
-        total = new_messages + pending_comments
+        checkpoint = AdminNotificationCheckpoint.objects.filter(
+            staff_user=request.user
+        ).first()
+        return Response(_build_notification_counts(checkpoint))
+
+
+# ---------------------------------------------------------------------------
+# Mark notifications seen
+# ---------------------------------------------------------------------------
+
+class AdminMarkNotificationsSeenView(APIView):
+    """
+    POST /api/gallery/admin/notifications/mark-seen/
+
+    Records the current timestamp as the last-seen checkpoint for the given
+    section. Subsequent GET /notifications/ calls will only count items created
+    after this timestamp.
+
+    Request body:
+        { "section": "messages" | "comments" | "all" }
+
+    Response shape (same as GET /notifications/ plus ok/section):
+        {
+            "ok": true,
+            "section": "messages",
+            "new_messages_count": 0,
+            "pending_comments_count": 7,
+            "total_count": 7,
+            "has_notifications": true
+        }
+    """
+
+    permission_classes = [IsAdminUser]
+    http_method_names = ['post', 'head', 'options']
+
+    _ALLOWED_SECTIONS = frozenset({'messages', 'comments', 'all'})
+
+    def post(self, request):
+        section = request.data.get('section', '')
+        if section not in self._ALLOWED_SECTIONS:
+            return Response(
+                {'error': 'Invalid section. Allowed values: messages, comments, all.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        checkpoint, _ = AdminNotificationCheckpoint.objects.get_or_create(
+            staff_user=request.user
+        )
+
+        if section in ('messages', 'all'):
+            checkpoint.messages_seen_at = now
+        if section in ('comments', 'all'):
+            checkpoint.comments_seen_at = now
+        checkpoint.save()
+
+        counts = _build_notification_counts(checkpoint)
         return Response({
-            'new_messages_count': new_messages,
-            'pending_comments_count': pending_comments,
-            'total_count': total,
-            'has_notifications': total > 0,
+            'ok': True,
+            'section': section,
+            'new_messages_count': counts['new_messages_count'],
+            'pending_comments_count': counts['pending_comments_count'],
+            'total_count': counts['total_count'],
+            'has_notifications': counts['has_notifications'],
         })

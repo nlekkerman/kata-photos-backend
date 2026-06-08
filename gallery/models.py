@@ -1,5 +1,6 @@
 import os
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.text import slugify
@@ -358,4 +359,24 @@ class VideoTimestampComment(models.Model):
 
     def __str__(self):
         return f'{self.author_name} @ {self.timestamp_seconds}s — {self.video}'
+
+
+class AdminNotificationCheckpoint(models.Model):
+    """One row per staff user; stores the last time each notification section was seen."""
+
+    staff_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notification_checkpoint',
+    )
+    messages_seen_at = models.DateTimeField(null=True, blank=True)
+    comments_seen_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Admin Notification Checkpoint'
+        verbose_name_plural = 'Admin Notification Checkpoints'
+
+    def __str__(self):
+        return f'Checkpoint for {self.staff_user}'
 

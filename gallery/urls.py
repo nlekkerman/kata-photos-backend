@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views_admin_messages import (
+    AdminMarkNotificationsSeenView,
     AdminNotificationCountsView,
     AdminVideoTimestampCommentDetailView,
     AdminVideoTimestampCommentListView,
@@ -88,7 +89,9 @@ urlpatterns = [
 
     # ------------------------------------------------------------------
     # Admin-only endpoints — notification counts
+    # NOTE: mark-seen fixed path must come before the bare notifications/ path.
     # ------------------------------------------------------------------
+    path('admin/notifications/mark-seen/', AdminMarkNotificationsSeenView.as_view(), name='admin-notifications-mark-seen'),
     path('admin/notifications/', AdminNotificationCountsView.as_view(), name='admin-notifications'),
 
     # ------------------------------------------------------------------
