@@ -2,6 +2,7 @@
 Admin-only views for visitor message and video timestamp comment moderation.
 
 Endpoints provided:
+    GET  /api/gallery/admin/notifications/
     GET  /api/gallery/admin/visitor-messages/
     GET  /api/gallery/admin/video-timestamp-comments/
     PATCH /api/gallery/admin/video-timestamp-comments/<pk>/
@@ -11,6 +12,7 @@ from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import VideoTimestampComment, VisitorMessage
 from .serializers import (
@@ -102,3 +104,46 @@ class AdminVideoTimestampCommentDetailView(generics.GenericAPIView):
             AdminVideoTimestampCommentSerializer(comment).data,
             status=status.HTTP_200_OK,
         )
+
+
+# ---------------------------------------------------------------------------
+# Notification counts
+# ---------------------------------------------------------------------------
+
+class AdminNotificationCountsView(APIView):
+    """
+    GET /api/gallery/admin/notifications/
+
+    Returns aggregate counts for admin UI notification badges.
+    Staff/admin only. Never exposes message or comment content.
+
+    Response shape:
+        {
+            "new_messages_count": <int>,
+            "pending_comments_count": <int>,
+            "total_count": <int>,
+            "has_notifications": <bool>
+        }
+
+    Counting rules:
+        new_messages_count   — VisitorMessage records where status == STATUS_NEW ('new')
+        pending_comments_count — VideoTimestampComment records where status == STATUS_PENDING ('pending')
+    """
+
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get', 'head', 'options']
+
+    def get(self, request):
+        new_messages = VisitorMessage.objects.filter(
+            status=VisitorMessage.STATUS_NEW
+        ).count()
+        pending_comments = VideoTimestampComment.objects.filter(
+            status=VideoTimestampComment.STATUS_PENDING
+        ).count()
+        total = new_messages + pending_comments
+        return Response({
+            'new_messages_count': new_messages,
+            'pending_comments_count': pending_comments,
+            'total_count': total,
+            'has_notifications': total > 0,
+        })

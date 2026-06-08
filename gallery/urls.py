@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views_admin_messages import (
+    AdminNotificationCountsView,
     AdminVideoTimestampCommentDetailView,
     AdminVideoTimestampCommentListView,
     AdminVisitorMessageListView,
@@ -83,6 +84,11 @@ urlpatterns = [
     path('admin/videos/complete-upload/', AdminVideoCompleteUploadView.as_view(), name='admin-video-complete-upload'),
     path('admin/videos/<int:pk>/', AdminVideoItemRetrieveUpdateDestroyView.as_view(), name='admin-video-detail'),
     path('admin/videos/<int:pk>/refresh-status/', AdminVideoRefreshStatusView.as_view(), name='admin-video-refresh-status'),
+
+    # ------------------------------------------------------------------
+    # Admin-only endpoints — notification counts
+    # ------------------------------------------------------------------
+    path('admin/notifications/', AdminNotificationCountsView.as_view(), name='admin-notifications'),
 
     # ------------------------------------------------------------------
     # Admin-only endpoints — visitor messages
