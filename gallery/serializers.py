@@ -881,6 +881,7 @@ class AdminVideoItemSerializer(serializers.ModelSerializer):
         source='album.title_bs', read_only=True, default=''
     )
     is_published = serializers.BooleanField(source='is_public', read_only=True)
+    can_publish = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
@@ -900,10 +901,19 @@ class AdminVideoItemSerializer(serializers.ModelSerializer):
             'duration_seconds',
             'status',
             'is_published',
+            'can_publish',
             'tags',
             'created_at',
             'updated_at',
         ]
+
+    def get_can_publish(self, obj):
+        return (
+            obj.status == VideoClip.STATUS_READY
+            and not obj.is_public
+            and bool(obj.cloudflare_playback_url)
+            and bool(obj.cloudflare_thumbnail_url)
+        )
 
 
 class AdminVideoItemWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
@@ -954,13 +964,22 @@ class AdminVideoItemWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
         ]
 
     def validate(self, data):
-        # Guard: a video must be in 'ready' status before it can be published.
+        # Guard: a video must be in 'ready' status with playback and thumbnail
+        # URLs present before it can be published.
         wants_public = data.get('is_public')  # mapped from is_published via source='is_public'
         if wants_public is True:
             current_status = getattr(self.instance, 'status', None)
             if current_status != VideoClip.STATUS_READY:
                 raise serializers.ValidationError(
-                    {'is_published': 'Video must be ready before it can be published.'}
+                    {'is_published': 'Video još nije spreman za objavu.'}
+                )
+            if not getattr(self.instance, 'cloudflare_playback_url', ''):
+                raise serializers.ValidationError(
+                    {'is_published': 'Video još nije spreman za objavu.'}
+                )
+            if not getattr(self.instance, 'cloudflare_thumbnail_url', ''):
+                raise serializers.ValidationError(
+                    {'is_published': 'Video još nije spreman za objavu.'}
                 )
         return data
 

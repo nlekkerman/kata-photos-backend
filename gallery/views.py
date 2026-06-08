@@ -249,7 +249,7 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
             description_en=data.get('description_en', ''),
             cloudflare_uid=cf_result['uid'],
             status=VideoClip.STATUS_UPLOADING,
-            is_public=True,
+            is_public=False,
         )
 
         return Response(
@@ -816,7 +816,7 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
             description_en=data.get('description_en', ''),
             cloudflare_uid=cf_result['uid'],
             status=VideoClip.STATUS_UPLOADING,
-            is_public=True,
+            is_public=False,
         )
 
         return Response(

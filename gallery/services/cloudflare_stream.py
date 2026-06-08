@@ -116,19 +116,21 @@ def map_cloudflare_status(cf_result: dict) -> str:
         ready         — playable
         error         — transcoding failed
 
-    ``readyToStream`` is also checked as a belt-and-suspenders guard.
+    Both ``readyToStream`` AND ``status.state == "ready"`` must be true before
+    we consider the video ready.  Cloudflare sets ``readyToStream=True`` (making
+    the thumbnail available) before all encoding variants / DASH manifests are
+    complete, so checking ``readyToStream`` alone causes the manifest endpoint
+    to return 500 while playback is still pending.
 
     Returns one of: ``"ready"``, ``"processing"``, ``"failed"``.
     Never returns ``"uploading"`` — that state is set only at creation time.
     """
-    if cf_result.get("readyToStream"):
-        return "ready"
     state: str = (cf_result.get("status") or {}).get("state", "")
-    if state == "ready":
-        return "ready"
     if state == "error":
         return "failed"
-    # pendingupload, inprogress, or unknown/empty — treat as still processing
+    if cf_result.get("readyToStream") and state == "ready":
+        return "ready"
+    # pendingupload, inprogress, readyToStream-without-confirmed-state, or unknown
     return "processing"
 
 
