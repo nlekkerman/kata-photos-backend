@@ -291,6 +291,37 @@ class MediaCoverSerializer(serializers.ModelSerializer):
         return resolve_translated(obj, 'alt_text', lang)
 
 
+def _resolve_album_cover(obj, context):
+    """Return a frontend-friendly cover dict for an album.
+
+    For video galleries: derives cover from the latest public ready VideoClip
+    that has a cloudflare_thumbnail_url.
+    For image galleries: delegates to MediaCoverSerializer(cover_media).
+    """
+    if obj.gallery_type == Album.GALLERY_TYPE_VIDEO:
+        video = (
+            obj.videos
+            .filter(is_public=True, status=VideoClip.STATUS_READY)
+            .exclude(cloudflare_thumbnail_url='')
+            .order_by('-created_at', '-id')
+            .first()
+        )
+        if not video:
+            return None
+        lang = context.get('lang', 'bs')
+        title = resolve_translated(video, 'title', lang) or video.title_bs or video.title_en
+        return {
+            'id': video.id,
+            'thumbnail_url': video.cloudflare_thumbnail_url,
+            'alt_text': title,
+        }
+
+    if obj.cover_media_id:
+        return MediaCoverSerializer(obj.cover_media, context=context).data
+
+    return None
+
+
 class AlbumListSerializer(serializers.ModelSerializer):
     cover = MediaCoverSerializer(source='cover_media', read_only=True)
     title = serializers.SerializerMethodField()
@@ -629,7 +660,7 @@ class AdminImageGalleryWriteSerializer(_TagsM2MMixin, serializers.ModelSerialize
 class AdminVideoGallerySerializer(serializers.ModelSerializer):
     """Read serializer for admin video gallery list/detail. Includes per-status video counts."""
 
-    cover = MediaCoverSerializer(source='cover_media', read_only=True)
+    cover = serializers.SerializerMethodField()
     # Populated by annotated queryset in the view.
     video_count = serializers.IntegerField(read_only=True, default=0)
     ready_video_count = serializers.IntegerField(read_only=True, default=0)
@@ -657,6 +688,9 @@ class AdminVideoGallerySerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+    def get_cover(self, obj):
+        return _resolve_album_cover(obj, self.context)
 
 
 class AdminVideoGalleryWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
@@ -1304,7 +1338,7 @@ class PublicAlbumCardSerializer(serializers.ModelSerializer):
     Does NOT expose raw bilingual fields, admin-only fields, or nested media lists.
     """
 
-    cover = MediaCoverSerializer(source='cover_media', read_only=True)
+    cover = serializers.SerializerMethodField()
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
@@ -1337,6 +1371,9 @@ class PublicAlbumCardSerializer(serializers.ModelSerializer):
     def get_frontend_url(self, obj):
         return album_share_info(obj, self.context.get('request'))['frontend_url']
 
+    def get_cover(self, obj):
+        return _resolve_album_cover(obj, self.context)
+
     def get_is_shareable(self, obj):
         return album_share_info(obj, self.context.get('request'))['is_shareable']
 
@@ -1348,7 +1385,7 @@ class PublicAlbumDetailSerializer(serializers.ModelSerializer):
     Does NOT expose raw bilingual fields, nested media/video lists, or admin-only fields.
     """
 
-    cover = MediaCoverSerializer(source='cover_media', read_only=True)
+    cover = serializers.SerializerMethodField()
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     seo_title = serializers.SerializerMethodField()
@@ -1382,6 +1419,9 @@ class PublicAlbumDetailSerializer(serializers.ModelSerializer):
     def get_seo_description(self, obj):
         lang = self.context.get('lang', 'bs')
         return resolve_translated(obj, 'seo_description', lang)
+
+    def get_cover(self, obj):
+        return _resolve_album_cover(obj, self.context)
 
     def get_share_url(self, obj):
         return album_share_info(obj, self.context.get('request'))['share_url']
