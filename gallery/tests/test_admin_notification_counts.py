@@ -10,6 +10,8 @@ Tests cover:
   - zero-count response has correct shape
   - messages with non-new status are not counted
   - comments with non-pending status are not counted
+  - approving/rejecting a comment reduces pending_comments_count
+  - marking a message read/replied reduces new_messages_count
 
 Run only these tests:
     python manage.py test gallery.tests.test_admin_notification_counts
@@ -22,6 +24,8 @@ from django.urls import reverse
 from gallery.models import VideoClip, VideoTimestampComment, VisitorMessage
 
 URL = reverse('admin-notifications')
+COMMENT_DETAIL_URL = 'admin-video-timestamp-comment-detail'
+MESSAGE_DETAIL_URL = 'admin-visitor-message-detail'
 
 
 def _make_video():
@@ -148,3 +152,143 @@ class AdminNotificationCountsResponseTests(TestCase):
         response = self.client.get(URL)
         data = response.json()
         self.assertEqual(data['total_count'], data['new_messages_count'] + data['pending_comments_count'])
+
+
+class AdminNotificationCountsCommentModerationTests(TestCase):
+    """
+    Verify that approving or rejecting a comment via the moderation endpoint
+    reduces pending_comments_count in the notification response.
+    """
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            username='staff', password='pass', is_staff=True
+        )
+        self.client.force_login(self.staff)
+        self.video = _make_video()
+
+    def test_approving_comment_removes_it_from_pending_count(self):
+        comment = _make_comment(self.video, status=VideoTimestampComment.STATUS_PENDING)
+        # sanity: 1 pending before moderation
+        data = self.client.get(URL).json()
+        self.assertEqual(data['pending_comments_count'], 1)
+
+        self.client.patch(
+            reverse(COMMENT_DETAIL_URL, args=[comment.pk]),
+            data={'status': VideoTimestampComment.STATUS_APPROVED},
+            content_type='application/json',
+        )
+
+        data = self.client.get(URL).json()
+        self.assertEqual(data['pending_comments_count'], 0)
+        self.assertFalse(data['has_notifications'])
+
+    def test_rejecting_comment_removes_it_from_pending_count(self):
+        comment = _make_comment(self.video, status=VideoTimestampComment.STATUS_PENDING)
+        self.client.patch(
+            reverse(COMMENT_DETAIL_URL, args=[comment.pk]),
+            data={'status': VideoTimestampComment.STATUS_REJECTED},
+            content_type='application/json',
+        )
+
+        data = self.client.get(URL).json()
+        self.assertEqual(data['pending_comments_count'], 0)
+
+    def test_partial_moderation_reduces_count_correctly(self):
+        c1 = _make_comment(self.video, status=VideoTimestampComment.STATUS_PENDING)
+        _make_comment(self.video, status=VideoTimestampComment.STATUS_PENDING)
+
+        self.client.patch(
+            reverse(COMMENT_DETAIL_URL, args=[c1.pk]),
+            data={'status': VideoTimestampComment.STATUS_APPROVED},
+            content_type='application/json',
+        )
+
+        data = self.client.get(URL).json()
+        self.assertEqual(data['pending_comments_count'], 1)
+
+
+class AdminNotificationCountsMessageStatusTests(TestCase):
+    """
+    Verify that updating a message status via the message detail endpoint
+    reduces new_messages_count in the notification response.
+    """
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            username='staff', password='pass', is_staff=True
+        )
+        self.client.force_login(self.staff)
+
+    def test_marking_message_read_removes_it_from_new_count(self):
+        message = _make_message(status=VisitorMessage.STATUS_NEW)
+        # sanity: 1 new before update
+        data = self.client.get(URL).json()
+        self.assertEqual(data['new_messages_count'], 1)
+
+        self.client.patch(
+            reverse(MESSAGE_DETAIL_URL, args=[message.pk]),
+            data={'status': VisitorMessage.STATUS_READ},
+            content_type='application/json',
+        )
+
+        data = self.client.get(URL).json()
+        self.assertEqual(data['new_messages_count'], 0)
+        self.assertFalse(data['has_notifications'])
+
+    def test_marking_message_archived_removes_it_from_new_count(self):
+        message = _make_message(status=VisitorMessage.STATUS_NEW)
+        self.client.patch(
+            reverse(MESSAGE_DETAIL_URL, args=[message.pk]),
+            data={'status': VisitorMessage.STATUS_ARCHIVED},
+            content_type='application/json',
+        )
+
+        data = self.client.get(URL).json()
+        self.assertEqual(data['new_messages_count'], 0)
+
+    def test_message_status_patch_returns_full_message(self):
+        message = _make_message(status=VisitorMessage.STATUS_NEW)
+        response = self.client.patch(
+            reverse(MESSAGE_DETAIL_URL, args=[message.pk]),
+            data={'status': VisitorMessage.STATUS_READ},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['status'], VisitorMessage.STATUS_READ)
+        self.assertEqual(body['id'], message.pk)
+
+    def test_message_status_patch_rejects_invalid_status(self):
+        message = _make_message(status=VisitorMessage.STATUS_NEW)
+        response = self.client.patch(
+            reverse(MESSAGE_DETAIL_URL, args=[message.pk]),
+            data={'status': 'nonexistent'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+        message.refresh_from_db()
+        self.assertEqual(message.status, VisitorMessage.STATUS_NEW)
+
+    def test_partial_status_update_reduces_count_correctly(self):
+        m1 = _make_message(status=VisitorMessage.STATUS_NEW)
+        _make_message(status=VisitorMessage.STATUS_NEW)
+
+        self.client.patch(
+            reverse(MESSAGE_DETAIL_URL, args=[m1.pk]),
+            data={'status': VisitorMessage.STATUS_READ},
+            content_type='application/json',
+        )
+
+        data = self.client.get(URL).json()
+        self.assertEqual(data['new_messages_count'], 1)
+
+    def test_message_status_patch_unauthenticated_rejected(self):
+        message = _make_message(status=VisitorMessage.STATUS_NEW)
+        self.client.logout()
+        response = self.client.patch(
+            reverse(MESSAGE_DETAIL_URL, args=[message.pk]),
+            data={'status': VisitorMessage.STATUS_READ},
+            content_type='application/json',
+        )
+        self.assertIn(response.status_code, [401, 403])

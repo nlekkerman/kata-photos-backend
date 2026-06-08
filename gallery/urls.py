@@ -4,6 +4,7 @@ from .views_admin_messages import (
     AdminNotificationCountsView,
     AdminVideoTimestampCommentDetailView,
     AdminVideoTimestampCommentListView,
+    AdminVisitorMessageDetailView,
     AdminVisitorMessageListView,
 )
 from .views import (
@@ -94,6 +95,7 @@ urlpatterns = [
     # Admin-only endpoints — visitor messages
     # ------------------------------------------------------------------
     path('admin/visitor-messages/', AdminVisitorMessageListView.as_view(), name='admin-visitor-message-list'),
+    path('admin/visitor-messages/<int:pk>/', AdminVisitorMessageDetailView.as_view(), name='admin-visitor-message-detail'),
     path('admin/visitor-messages/<int:pk>/reply/', VisitorMessageReplyView.as_view(), name='admin-visitor-message-reply'),
 
     # ------------------------------------------------------------------

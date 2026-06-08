@@ -1158,6 +1158,27 @@ class AdminVisitorMessageSerializer(serializers.ModelSerializer):
         ]
 
 
+class AdminVisitorMessageStatusSerializer(serializers.ModelSerializer):
+    """Write serializer for PATCH /admin/visitor-messages/<pk>/. Only status is writable."""
+
+    class Meta:
+        model = VisitorMessage
+        fields = ['id', 'status']
+
+    def validate_status(self, value):
+        allowed = {
+            VisitorMessage.STATUS_NEW,
+            VisitorMessage.STATUS_READ,
+            VisitorMessage.STATUS_REPLIED,
+            VisitorMessage.STATUS_ARCHIVED,
+        }
+        if value not in allowed:
+            raise serializers.ValidationError(
+                f"Invalid status. Allowed values: {', '.join(sorted(allowed))}."
+            )
+        return value
+
+
 class AdminVideoTimestampCommentSerializer(serializers.ModelSerializer):
     """Read serializer for the admin timestamp comment list. Exposes author_email (staff only)."""
 

@@ -19,6 +19,7 @@ from .serializers import (
     AdminVideoTimestampCommentSerializer,
     AdminVideoTimestampCommentStatusSerializer,
     AdminVisitorMessageSerializer,
+    AdminVisitorMessageStatusSerializer,
 )
 
 
@@ -51,6 +52,36 @@ class AdminVisitorMessageListView(generics.ListAPIView):
         if status_val:
             qs = qs.filter(status=status_val)
         return qs
+
+
+# ---------------------------------------------------------------------------
+# Visitor message status update
+# ---------------------------------------------------------------------------
+
+class AdminVisitorMessageDetailView(generics.GenericAPIView):
+    """
+    PATCH /api/gallery/admin/visitor-messages/<pk>/
+
+    Update the status of a VisitorMessage.
+    Only ``status`` is writable. Allowed values: new, read, replied, archived.
+    Returns the updated message using the full admin read serializer.
+    """
+
+    permission_classes = [IsAdminUser]
+    http_method_names = ['patch', 'head', 'options']
+    queryset = VisitorMessage.objects.all()
+
+    def patch(self, request, pk):
+        message = generics.get_object_or_404(VisitorMessage, pk=pk)
+        serializer = AdminVisitorMessageStatusSerializer(
+            message, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            AdminVisitorMessageSerializer(message).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 # ---------------------------------------------------------------------------
