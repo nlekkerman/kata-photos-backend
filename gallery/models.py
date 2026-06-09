@@ -216,6 +216,20 @@ class VideoClip(models.Model):
         (STATUS_FAILED, 'Failed'),
     ]
 
+    TITLE_SOURCE_MANUAL = 'manual'
+    TITLE_SOURCE_BACKEND_AUTO = 'backend_auto'
+    TITLE_SOURCE_FILENAME = 'filename'
+    TITLE_SOURCE_CLOUDFLARE = 'cloudflare'
+    TITLE_SOURCE_UNKNOWN = 'unknown'
+
+    TITLE_SOURCE_CHOICES = [
+        (TITLE_SOURCE_MANUAL, 'Manual'),
+        (TITLE_SOURCE_BACKEND_AUTO, 'Backend auto-generated'),
+        (TITLE_SOURCE_FILENAME, 'Derived from filename'),
+        (TITLE_SOURCE_CLOUDFLARE, 'Cloudflare metadata'),
+        (TITLE_SOURCE_UNKNOWN, 'Unknown'),
+    ]
+
     album = models.ForeignKey(
         'gallery.Album',
         null=True,
@@ -236,6 +250,27 @@ class VideoClip(models.Model):
     tags = models.ManyToManyField('Tag', blank=True, related_name='video_clips')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Upload audit fields
+    original_filename = models.CharField(max_length=255, blank=True, default='')
+    submitted_title_bs = models.CharField(max_length=255, blank=True, default='')
+    title_source = models.CharField(
+        max_length=20,
+        choices=TITLE_SOURCE_CHOICES,
+        default=TITLE_SOURCE_UNKNOWN,
+    )
+
+    # Cloudflare Stream status audit fields
+    cloudflare_status_state = models.CharField(max_length=32, blank=True, default='')
+    cloudflare_status_step = models.CharField(max_length=64, blank=True, default='')
+    cloudflare_pct_complete = models.CharField(max_length=16, blank=True, default='')
+    cloudflare_error_reason_code = models.CharField(max_length=64, blank=True, default='')
+    cloudflare_error_reason_text = models.TextField(blank=True, default='')
+    cloudflare_last_synced_at = models.DateTimeField(null=True, blank=True)
+
+    # Processing tracking
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    processing_warning = models.TextField(blank=True, default='')
 
     class Meta:
         ordering = ['-created_at']

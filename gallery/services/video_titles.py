@@ -150,9 +150,9 @@ def resolve_video_titles(
     description_bs: str | None,
     original_filename: str | None = None,
     now: datetime | None = None,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """
-    Resolve safe (title_bs, title_en) for VideoClip creation.
+    Resolve safe (title_bs, title_en, title_source) for VideoClip creation.
 
     Strategy:
     1. Use title_bs if non-blank.
@@ -165,16 +165,20 @@ def resolve_video_titles(
     2. Translate final title_bs via existing translate_bs_to_en_fields.
     3. Fallback to title_bs.
 
-    Never raises; always returns two non-blank strings.
+    Returns (title_bs, title_en, title_source).
+    title_source is one of: 'manual', 'backend_auto', 'filename'.
+    Never raises; always returns non-blank strings.
     """
     # ---- Resolve title_bs --------------------------------------------------
     bs_input = (title_bs or "").strip()
     if bs_input:
         final_bs = bs_input
+        title_source = "manual"
     else:
         # Try AI generation
         desc = (description_bs or "").strip()
         final_bs = generate_video_title_bs_from_description(desc) or ""
+        title_source = "backend_auto"
 
         if not final_bs and desc:
             # Local fallback 1: first sentence/chunk from description
@@ -183,6 +187,8 @@ def resolve_video_titles(
         if not final_bs and original_filename:
             # Local fallback 2: cleaned filename
             final_bs = _clean_filename(original_filename)
+            if final_bs:
+                title_source = "filename"
 
         if not final_bs:
             # Local fallback 3: timestamp
@@ -197,4 +203,4 @@ def resolve_video_titles(
         translated = translate_bs_to_en_fields({"title_bs": final_bs})
         final_en = translated.get("title_bs", "").strip() or final_bs
 
-    return final_bs, final_en
+    return final_bs, final_en, title_source

@@ -557,6 +557,7 @@ class VideoClipDirectUploadRequestSerializer(serializers.Serializer):
     description_bs = serializers.CharField(allow_blank=True, default="")
     description_en = serializers.CharField(allow_blank=True, default="")
     max_duration_seconds = serializers.IntegerField(required=False, default=300)
+    original_filename = serializers.CharField(max_length=255, allow_blank=True, default="")
 
     def validate_max_duration_seconds(self, value):
         if value <= 0:
@@ -871,6 +872,8 @@ class AdminVideoItemSerializer(serializers.ModelSerializer):
     """Read serializer for admin video item list/detail.
 
     Maps ``is_public`` (model field) to ``is_published`` for consistent admin API naming.
+    Includes upload and Cloudflare status audit fields for admin diagnostics.
+    These debug fields are NOT exposed on public VideoClipSerializer.
     """
 
     gallery_id = serializers.IntegerField(source='album_id', read_only=True)
@@ -905,6 +908,18 @@ class AdminVideoItemSerializer(serializers.ModelSerializer):
             'tags',
             'created_at',
             'updated_at',
+            # Upload audit fields (admin only)
+            'original_filename',
+            'submitted_title_bs',
+            'title_source',
+            # Cloudflare status audit fields (admin only)
+            'cloudflare_status_state',
+            'cloudflare_pct_complete',
+            'cloudflare_status_step',
+            'cloudflare_error_reason_text',
+            'cloudflare_last_synced_at',
+            # Processing tracking (admin only)
+            'processing_warning',
         ]
 
     def get_can_publish(self, obj):
@@ -1001,6 +1016,7 @@ class AdminVideoDirectUploadSerializer(serializers.Serializer):
     description_bs = serializers.CharField(allow_blank=True, default="")
     description_en = serializers.CharField(allow_blank=True, default="")
     max_duration_seconds = serializers.IntegerField(required=False, default=300)
+    original_filename = serializers.CharField(max_length=255, allow_blank=True, default="")
 
     def validate_max_duration_seconds(self, value):
         if value <= 0:

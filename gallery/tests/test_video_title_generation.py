@@ -172,7 +172,7 @@ class ResolveVideoTitlesTests(TestCase):
     # -- title_bs already provided -------------------------------------------
 
     def test_provided_title_bs_is_preserved(self):
-        bs, en = self._call(
+        bs, en, _ = self._call(
             title_bs="Orao nad planinom",
             title_en="",
             description_bs="Opis orla.",
@@ -182,7 +182,7 @@ class ResolveVideoTitlesTests(TestCase):
         self.assertEqual(bs, "Orao nad planinom")
 
     def test_provided_title_en_is_preserved(self):
-        bs, en = self._call(
+        bs, en, _ = self._call(
             title_bs="Orao nad planinom",
             title_en="Eagle above the mountain",
             description_bs="",
@@ -191,7 +191,7 @@ class ResolveVideoTitlesTests(TestCase):
         self.assertEqual(en, "Eagle above the mountain")
 
     def test_whitespace_only_title_bs_is_treated_as_blank(self):
-        bs, _ = self._call(
+        bs, _, _ = self._call(
             title_bs="   ",
             title_en="",
             description_bs="Srna prelazi šumski put.",
@@ -202,7 +202,7 @@ class ResolveVideoTitlesTests(TestCase):
     # -- title_bs generated from description ---------------------------------
 
     def test_blank_title_bs_generates_from_description(self):
-        bs, _ = self._call(
+        bs, _, _ = self._call(
             title_bs="",
             title_en="",
             description_bs="Srna prelazi šumski put kod Bihaća.",
@@ -211,7 +211,7 @@ class ResolveVideoTitlesTests(TestCase):
         self.assertEqual(bs, "Srna kraj Bihaća")
 
     def test_none_title_bs_generates_from_description(self):
-        bs, _ = self._call(
+        bs, _, _ = self._call(
             title_bs=None,
             title_en=None,
             description_bs="Majka divlja svinja hrani praščiće.",
@@ -232,7 +232,7 @@ class ResolveVideoTitlesTests(TestCase):
                 "gallery.services.video_titles.translate_bs_to_en_fields",
                 return_value={"title_bs": "Deer near Bihać"},
             ):
-                bs, en = resolve_video_titles(
+                bs, en, _ = resolve_video_titles(
                     title_bs="Srna kraj Bihaća",
                     title_en="",
                     description_bs="",
@@ -244,7 +244,7 @@ class ResolveVideoTitlesTests(TestCase):
         from gallery.services.video_titles import resolve_video_titles
 
         with override_settings(OPENAI_API_KEY=""):
-            bs, en = resolve_video_titles(
+            bs, en, _ = resolve_video_titles(
                 title_bs="Srna kraj Bihaća",
                 title_en="",
                 description_bs="",
@@ -256,7 +256,7 @@ class ResolveVideoTitlesTests(TestCase):
     # -- Local fallbacks when OpenAI fails -----------------------------------
 
     def test_fallback_to_first_sentence_when_ai_fails(self):
-        bs, _ = self._call(
+        bs, _, _ = self._call(
             title_bs="",
             title_en="",
             description_bs="Srna prelazi šumski put. Vidljiva je jasno.",
@@ -266,7 +266,7 @@ class ResolveVideoTitlesTests(TestCase):
         self.assertIn("Srna", bs)
 
     def test_fallback_to_filename_when_description_blank_and_ai_fails(self):
-        bs, _ = self._call(
+        bs, _, source = self._call(
             title_bs="",
             title_en="",
             description_bs="",
@@ -274,10 +274,11 @@ class ResolveVideoTitlesTests(TestCase):
             ai_raises=True,
         )
         self.assertIn("medvjed", bs.lower())
+        self.assertEqual(source, "filename")
 
     def test_fallback_to_timestamp_when_no_hints(self):
         fixed_now = datetime(2025, 6, 8, 10, 30, tzinfo=timezone.utc)
-        bs, _ = self._call(
+        bs, _, _ = self._call(
             title_bs="",
             title_en="",
             description_bs="",
@@ -287,12 +288,31 @@ class ResolveVideoTitlesTests(TestCase):
         )
         self.assertEqual(bs, "Video upload 2025-06-08 10:30")
 
+    def test_title_source_manual_when_title_provided(self):
+        """title_source must be 'manual' when a non-blank title_bs is supplied."""
+        _, _, source = self._call(
+            title_bs="Orao nad planinom",
+            title_en="",
+            description_bs="",
+            ai_payload={},
+        )
+        self.assertEqual(source, "manual")
+
+    def test_title_source_backend_auto_when_ai_generates(self):
+        _, _, source = self._call(
+            title_bs="",
+            title_en="",
+            description_bs="Srna prelazi šumski put.",
+            ai_payload={"title_bs": "Srna u šumi"},
+        )
+        self.assertEqual(source, "backend_auto")
+
     # -- Cloudflare meta.name: title_bs never blank --------------------------
 
     def test_cloudflare_meta_name_never_blank(self):
         """resolve_video_titles must never return a blank title_bs."""
         fixed_now = datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc)
-        bs, _ = self._call(
+        bs, _, _ = self._call(
             title_bs=None,
             title_en=None,
             description_bs=None,
@@ -360,7 +380,7 @@ class DirectUploadBlankTitleSerializerTests(TestCase):
     @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
     def test_blank_title_bs_triggers_resolve_video_titles(self, _mock_cf):
         """When title_bs is blank, the view calls resolve_video_titles and the result is saved."""
-        with patch(_RESOLVE_PATH, return_value=('Srna kraj Bihaća', 'Deer near Bihać')) as mock_resolve:
+        with patch(_RESOLVE_PATH, return_value=('Srna kraj Bihaća', 'Deer near Bihać', 'backend_auto')) as mock_resolve:
             resp = self.client.post(
                 _PUBLIC_UPLOAD_URL,
                 {'title_bs': '', 'description_bs': 'Srna prelazi šumski put kod Bihaća.', 'max_duration_seconds': 60},
@@ -383,7 +403,7 @@ class DirectUploadBlankTitleSerializerTests(TestCase):
         from gallery.models import Album
         Album.objects.create(slug='vid-album', title_bs='Video Album', gallery_type=Album.GALLERY_TYPE_VIDEO)
 
-        with patch(_RESOLVE_PATH, return_value=('Medvjed na Plješevici', 'Bear on Plješevica')) as mock_resolve:
+        with patch(_RESOLVE_PATH, return_value=('Medvjed na Plješevici', 'Bear on Plješevica', 'backend_auto')) as mock_resolve:
             resp = self.client.post(
                 _ADMIN_UPLOAD_URL,
                 {'title_bs': '', 'description_bs': 'Medvjed se kreće grebenom.', 'max_duration_seconds': 60},
@@ -401,7 +421,7 @@ class DirectUploadBlankTitleSerializerTests(TestCase):
     @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
     def test_provided_title_bs_is_not_overwritten(self, _mock_cf):
         """When title_bs is non-blank, resolve_video_titles preserves it."""
-        with patch(_RESOLVE_PATH, return_value=('Orao nad planinom', 'Eagle above the mountain')) as mock_resolve:
+        with patch(_RESOLVE_PATH, return_value=('Orao nad planinom', 'Eagle above the mountain', 'manual')) as mock_resolve:
             resp = self.client.post(
                 _PUBLIC_UPLOAD_URL,
                 {'title_bs': 'Orao nad planinom', 'description_bs': 'Opis orla.', 'max_duration_seconds': 60},

@@ -283,10 +283,18 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
         )
         from .services.video_titles import resolve_video_titles
 
-        title_bs, title_en = resolve_video_titles(
+        original_filename = (data.get('original_filename') or '').strip()
+        submitted_title_bs = (data.get('title_bs') or '').strip()
+
+        title_bs, title_en, title_source = resolve_video_titles(
             title_bs=data.get('title_bs'),
             title_en=data.get('title_en'),
             description_bs=data.get('description_bs'),
+            original_filename=original_filename or None,
+        )
+        logger.info(
+            "video_upload: title_source=%r submitted=%r final=%r",
+            title_source, submitted_title_bs, title_bs,
         )
 
         try:
@@ -315,6 +323,13 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
             cloudflare_uid=cf_result['uid'],
             status=VideoClip.STATUS_UPLOADING,
             is_public=False,
+            original_filename=original_filename,
+            submitted_title_bs=submitted_title_bs,
+            title_source=title_source,
+        )
+        logger.info(
+            "video_upload: VideoClip pk=%s created cf_uid=%r title_source=%r",
+            video.pk, cf_result['uid'], title_source,
         )
 
         return Response(
@@ -409,11 +424,9 @@ class VideoClipSyncView(generics.GenericAPIView):
 
         from .services.cloudflare_stream import (
             CloudflareStreamError,
-            build_playback_url,
-            build_thumbnail_url,
             get_video_details,
-            map_cloudflare_status,
         )
+        from .services.video_sync import sync_video_from_cloudflare
 
         try:
             cf = get_video_details(
@@ -429,40 +442,9 @@ class VideoClipSyncView(generics.GenericAPIView):
             )
             raise CloudflareServiceError(detail=str(exc))
 
-        update_fields = []
-
-        new_status = map_cloudflare_status(cf)
-        if video.status != new_status:
-            video.status = new_status
-            update_fields.append('status')
-
-        # Safety: failed videos must not remain publicly visible.
-        if new_status == VideoClip.STATUS_FAILED and video.is_public:
-            video.is_public = False
-            update_fields.append('is_public')
-
-        raw_duration = cf.get('duration')
-        if raw_duration is not None and raw_duration >= 0:
-            new_duration = round(raw_duration)
-            if video.duration_seconds != new_duration:
-                video.duration_seconds = new_duration
-                update_fields.append('duration_seconds')
-
-        if customer_subdomain:
-            new_playback = build_playback_url(
-                customer_subdomain=customer_subdomain, uid=video.cloudflare_uid
-            )
-            if video.cloudflare_playback_url != new_playback:
-                video.cloudflare_playback_url = new_playback
-                update_fields.append('cloudflare_playback_url')
-
-            new_thumbnail = build_thumbnail_url(
-                customer_subdomain=customer_subdomain, uid=video.cloudflare_uid
-            )
-            if video.cloudflare_thumbnail_url != new_thumbnail:
-                video.cloudflare_thumbnail_url = new_thumbnail
-                update_fields.append('cloudflare_thumbnail_url')
-
+        update_fields = sync_video_from_cloudflare(
+            video, cf, customer_subdomain=customer_subdomain
+        )
         if update_fields:
             video.save(update_fields=update_fields)
 
@@ -876,10 +858,18 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
         )
         from .services.video_titles import resolve_video_titles
 
-        title_bs, title_en = resolve_video_titles(
+        original_filename = (data.get('original_filename') or '').strip()
+        submitted_title_bs = (data.get('title_bs') or '').strip()
+
+        title_bs, title_en, title_source = resolve_video_titles(
             title_bs=data.get('title_bs'),
             title_en=data.get('title_en'),
             description_bs=data.get('description_bs'),
+            original_filename=original_filename or None,
+        )
+        logger.info(
+            "video_upload: title_source=%r submitted=%r final=%r",
+            title_source, submitted_title_bs, title_bs,
         )
 
         try:
@@ -908,6 +898,13 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
             cloudflare_uid=cf_result['uid'],
             status=VideoClip.STATUS_UPLOADING,
             is_public=False,
+            original_filename=original_filename,
+            submitted_title_bs=submitted_title_bs,
+            title_source=title_source,
+        )
+        logger.info(
+            "video_upload: VideoClip pk=%s created cf_uid=%r title_source=%r",
+            video.pk, cf_result['uid'], title_source,
         )
 
         return Response(
@@ -947,8 +944,14 @@ class AdminVideoCompleteUploadView(generics.GenericAPIView):
             )
 
         if video.status == VideoClip.STATUS_UPLOADING:
+            from django.utils import timezone as dj_timezone
             video.status = VideoClip.STATUS_PROCESSING
-            video.save(update_fields=['status'])
+            video.processing_started_at = dj_timezone.now()
+            video.save(update_fields=['status', 'processing_started_at'])
+            logger.info(
+                "video_upload: VideoClip pk=%s marked processing processing_started_at set",
+                video.pk,
+            )
 
         return Response(AdminVideoItemSerializer(video).data, status=status.HTTP_200_OK)
 
@@ -1000,11 +1003,9 @@ class AdminVideoRefreshStatusView(generics.GenericAPIView):
 
         from .services.cloudflare_stream import (
             CloudflareStreamError,
-            build_playback_url,
-            build_thumbnail_url,
             get_video_details,
-            map_cloudflare_status,
         )
+        from .services.video_sync import sync_video_from_cloudflare
 
         try:
             cf = get_video_details(
@@ -1020,40 +1021,9 @@ class AdminVideoRefreshStatusView(generics.GenericAPIView):
             )
             raise CloudflareServiceError(detail=str(exc))
 
-        update_fields = []
-
-        new_status = map_cloudflare_status(cf)
-        if video.status != new_status:
-            video.status = new_status
-            update_fields.append('status')
-
-        # Safety: failed videos must not remain publicly visible.
-        if new_status == VideoClip.STATUS_FAILED and video.is_public:
-            video.is_public = False
-            update_fields.append('is_public')
-
-        raw_duration = cf.get('duration')
-        if raw_duration is not None and raw_duration >= 0:
-            new_duration = round(raw_duration)
-            if video.duration_seconds != new_duration:
-                video.duration_seconds = new_duration
-                update_fields.append('duration_seconds')
-
-        if customer_subdomain:
-            new_playback = build_playback_url(
-                customer_subdomain=customer_subdomain, uid=video.cloudflare_uid
-            )
-            if video.cloudflare_playback_url != new_playback:
-                video.cloudflare_playback_url = new_playback
-                update_fields.append('cloudflare_playback_url')
-
-            new_thumbnail = build_thumbnail_url(
-                customer_subdomain=customer_subdomain, uid=video.cloudflare_uid
-            )
-            if video.cloudflare_thumbnail_url != new_thumbnail:
-                video.cloudflare_thumbnail_url = new_thumbnail
-                update_fields.append('cloudflare_thumbnail_url')
-
+        update_fields = sync_video_from_cloudflare(
+            video, cf, customer_subdomain=customer_subdomain
+        )
         if update_fields:
             video.save(update_fields=update_fields)
 
