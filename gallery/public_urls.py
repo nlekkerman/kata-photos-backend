@@ -11,6 +11,7 @@ from .views import (
     VideoTimestampCommentListCreateView,
     VisitorMessageCreateView,
 )
+from .views_analytics import PublicAnalyticsEventView
 
 urlpatterns = [
     path('hero-video/', HeroVideoView.as_view(), name='hero-video'),
@@ -22,4 +23,5 @@ urlpatterns = [
     path('albums/<slug:slug>/', PublicAlbumDetailView.as_view(), name='public-album-detail'),
     path('albums/<slug:slug>/videos/', PublicAlbumVideosView.as_view(), name='public-album-videos'),
     path('albums/<slug:slug>/media/', PublicAlbumMediaView.as_view(), name='public-album-media'),
+    path('analytics/events/', PublicAnalyticsEventView.as_view(), name='public-analytics-event'),
 ]

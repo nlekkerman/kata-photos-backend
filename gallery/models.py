@@ -445,6 +445,56 @@ class VideoTimestampComment(models.Model):
         return f'{self.author_name} @ {self.timestamp_seconds}s — {self.video}'
 
 
+class AnalyticsEvent(models.Model):
+    """Anonymous first-party event record for admin KPI tracking.
+
+    Privacy rules enforced at model level:
+    - No IP address stored.
+    - No user-agent stored.
+    - No visitor identity or session stored.
+    - Only aggregate-useful anonymous fields.
+    """
+
+    EVENT_PAGE_VIEW = 'page_view'
+    EVENT_VIDEO_PLAY = 'video_play'
+
+    EVENT_TYPE_CHOICES = [
+        (EVENT_PAGE_VIEW, 'Page view'),
+        (EVENT_VIDEO_PLAY, 'Video play'),
+    ]
+
+    event_type = models.CharField(max_length=40, choices=EVENT_TYPE_CHOICES)
+    page_path = models.CharField(max_length=500, blank=True)
+    video = models.ForeignKey(
+        'VideoClip',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='analytics_events',
+    )
+    album = models.ForeignKey(
+        'Album',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='analytics_events',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['event_type'], name='analytics_event_type_idx'),
+            models.Index(fields=['created_at'], name='analytics_created_at_idx'),
+            models.Index(fields=['event_type', 'created_at'], name='analytics_type_created_idx'),
+            models.Index(fields=['video', 'event_type'], name='analytics_video_type_idx'),
+            models.Index(fields=['page_path', 'event_type'], name='analytics_path_type_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.event_type} — {self.page_path or self.video_id} @ {self.created_at:%Y-%m-%d %H:%M}'
+
+
 class AdminNotificationCheckpoint(models.Model):
     """One row per staff user; stores the last time each notification section was seen."""
 

@@ -1,6 +1,15 @@
 from django.contrib import admin
 
-from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage, VisitorMessageReply
+from .models import Album, AnalyticsEvent, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage, VisitorMessageReply
+
+
+@admin.register(AnalyticsEvent)
+class AnalyticsEventAdmin(admin.ModelAdmin):
+    list_display = ('event_type', 'page_path', 'video', 'created_at')
+    list_filter = ('event_type', 'created_at')
+    search_fields = ('page_path', 'video__title_bs', 'video__title_en')
+    readonly_fields = ('event_type', 'page_path', 'video', 'album', 'created_at')
+    ordering = ('-created_at',)
 
 
 @admin.register(Tag)
