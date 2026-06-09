@@ -1,15 +1,17 @@
 """
 Management command: seed_seo_tags
 
-Seeds a curated set of bilingual SEO tags for Plješevica / Una region
-wildlife content.
+Canonical idempotent normalizer for SEO/category tags for the
+Plješevica / Una region wildlife content.
 
 Behaviour:
-  - Uses update_or_create by slug — never duplicates tags.
-  - Runs that slug already exists: updates name_bs, name_en,
-    description_bs, description_en, and category.
+  - Updates existing tags by slug (name, descriptions, category).
+  - Creates missing tags.
+  - Never duplicates tags.
+  - Merges known duplicate slugs into their canonical equivalent and
+    moves all M2M relationships before deleting the old tag.
   - Safe to run multiple times.
-  - Prints a summary: created / updated / unchanged.
+  - Prints a summary: created / updated / unchanged / merged / manual_review.
 
 Usage:
     python manage.py seed_seo_tags
@@ -46,7 +48,7 @@ SEED_TAGS = [
         'pljesevica',
         'Plješevica',
         'Plješevica Mountain',
-        'Planina Plješevica — staništu medvjeda, vukova i divljih svinja na granici BiH i Hrvatske.',
+        'Planina Plješevica — stanište medvjeda, vukova i divljih svinja na granici BiH i Hrvatske.',
         'Plješevica Mountain — habitat of bears, wolves and wild boar on the BiH–Croatia border.',
         Tag.CATEGORY_LOCATION,
     ),
@@ -76,6 +78,22 @@ SEED_TAGS = [
         Tag.CATEGORY_SPECIES,
     ),
     (
+        'vuk',
+        'Vuk',
+        'Wolf',
+        'Vuk (Canis lupus) — vrhovni predator dinarskih šuma.',
+        'Wolf (Canis lupus) — apex predator of the Dinaric forests.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'ris',
+        'Ris',
+        'Eurasian Lynx',
+        'Euroazijski ris (Lynx lynx) — najugroženija velika mačka Balkana.',
+        'Eurasian lynx (Lynx lynx) — the most endangered large cat of the Balkans.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
         'divlja-svinja',
         'Divlja svinja',
         'Wild Boar',
@@ -100,6 +118,62 @@ SEED_TAGS = [
         Tag.CATEGORY_SPECIES,
     ),
     (
+        'jelen',
+        'Jelen',
+        'Red Deer',
+        'Jelen (Cervus elaphus) — najveći jelen Balkana, čest na Plješevici.',
+        'Red deer (Cervus elaphus) — the largest deer of the Balkans, common on Plješevica.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'divokoza',
+        'Divokoza',
+        'Chamois',
+        'Divokoza (Rupicapra rupicapra) — brza planinska antilopa dinarskih grebena.',
+        'Chamois (Rupicapra rupicapra) — agile mountain antelope of the Dinaric ridges.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'jazavac',
+        'Jazavac',
+        'Badger',
+        'Jazavac (Meles meles) — noćni stanovnik šuma i livada.',
+        'Badger (Meles meles) — nocturnal inhabitant of forests and meadows.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'kuna',
+        'Kuna',
+        'Marten',
+        'Kuna (Martes sp.) — spretni lovac šumskih krošnji.',
+        'Marten (Martes sp.) — agile predator of forest canopies.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'vidra',
+        'Vidra',
+        'Otter',
+        'Vidra (Lutra lutra) — rijetki stanovnik čistih rijeka Une i njezinih pritoka.',
+        'Otter (Lutra lutra) — rare inhabitant of the clean Una River and its tributaries.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'divlja-macka',
+        'Divlja mačka',
+        'Wildcat',
+        'Divlja mačka (Felis silvestris) — rijetki tajnoviti predator dinarskih šuma.',
+        'Wildcat (Felis silvestris) — rare and secretive predator of Dinaric forests.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'zec',
+        'Zec',
+        'Hare',
+        'Zec (Lepus europaeus) — brzi stanovnik šumskih rubova i livada.',
+        'Hare (Lepus europaeus) — fast-moving inhabitant of forest edges and meadows.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
         'ptice',
         'Ptice',
         'Birds',
@@ -108,11 +182,67 @@ SEED_TAGS = [
         Tag.CATEGORY_SPECIES,
     ),
     (
+        'vodene-ptice',
+        'Vodene ptice',
+        'Water Birds',
+        'Vodene ptice — vrste vezane uz rijeke, potoke i bare.',
+        'Water birds — species associated with rivers, streams and wetlands.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
         'sisari',
         'Sisari',
         'Mammals',
         'Sisari — divlji sisavci Dinarskog gorja i rijeke Une.',
         'Mammals — wild mammals of the Dinaric mountains and Una River.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'gmizavci',
+        'Gmizavci',
+        'Reptiles',
+        'Gmizavci — zmije, gušteri i kornjače dinarskog područja.',
+        'Reptiles — snakes, lizards and tortoises of the Dinaric region.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'vodozemci',
+        'Vodozemci',
+        'Amphibians',
+        'Vodozemci — žabe, daždevnjaci i vodenjaci rijeke Une i okolnih područja.',
+        'Amphibians — frogs, salamanders and newts of the Una River and surrounding areas.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'ribe',
+        'Ribe',
+        'Fish',
+        'Ribe — pastrmka, lipljen i druge vrste čistih rijeka.',
+        'Fish — trout, grayling and other species of clean rivers.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'insekti',
+        'Insekti',
+        'Insects',
+        'Insekti — bogat insektni svijet planinskih livada i šuma.',
+        'Insects — the rich insect life of mountain meadows and forests.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'sumske-zivotinje',
+        'Šumske životinje',
+        'Forest Animals',
+        'Šumske životinje — sve vrste koje žive u gustim šumama Plješevice.',
+        'Forest animals — all species that inhabit the dense forests of Plješevica.',
+        Tag.CATEGORY_SPECIES,
+    ),
+    (
+        'rijecne-zivotinje',
+        'Riječne životinje',
+        'River Animals',
+        'Riječne životinje — vrste vezane uz rijeku Unu i njezine pritoke.',
+        'River animals — species associated with the Una River and its tributaries.',
         Tag.CATEGORY_SPECIES,
     ),
     # ---- Habitats -----------------------------------------------------------
@@ -140,6 +270,54 @@ SEED_TAGS = [
         'Mountain ridges — exposed rock formations and open terrain.',
         Tag.CATEGORY_HABITAT,
     ),
+    (
+        'rijeka',
+        'Rijeka',
+        'River',
+        'Riječni ekosistem — staništa uz tekuće vode.',
+        'River ecosystem — habitats along running water.',
+        Tag.CATEGORY_HABITAT,
+    ),
+    (
+        'potok',
+        'Potok',
+        'Stream',
+        'Planinski potoci — hladne, brze i čiste vode dinarskog gorja.',
+        'Mountain streams — cold, fast and clean waters of the Dinaric mountains.',
+        Tag.CATEGORY_HABITAT,
+    ),
+    (
+        'kanjon',
+        'Kanjon',
+        'Canyon',
+        'Kanjon — duboko usječene doline rijeke Une i njezinih pritoka.',
+        'Canyon — deeply incised valleys of the Una River and its tributaries.',
+        Tag.CATEGORY_HABITAT,
+    ),
+    (
+        'pecina',
+        'Pećina',
+        'Cave',
+        'Pećine i špiljski sustavi — stanište šišmiša i drugih podzemnih vrsta.',
+        'Caves and cave systems — habitat of bats and other subterranean species.',
+        Tag.CATEGORY_HABITAT,
+    ),
+    (
+        'livada',
+        'Livada',
+        'Meadow',
+        'Planinske livade — bogata staništa cvijeća, insekata i malih sisavaca.',
+        'Mountain meadows — rich habitats of wildflowers, insects and small mammals.',
+        Tag.CATEGORY_HABITAT,
+    ),
+    (
+        'snijeg',
+        'Snijeg',
+        'Snow',
+        'Snijegom pokriveni predjeli — zimska staništa i tragovi u snijegu.',
+        'Snow-covered terrain — winter habitats and tracks in the snow.',
+        Tag.CATEGORY_HABITAT,
+    ),
     # ---- Behaviour ----------------------------------------------------------
     (
         'hranjenje',
@@ -165,13 +343,56 @@ SEED_TAGS = [
         'Prints and tracks of wild animals — evidence of presence in nature.',
         Tag.CATEGORY_BEHAVIOR,
     ),
+    (
+        'nocne-zivotinje',
+        'Noćne životinje',
+        'Nocturnal Animals',
+        'Noćne životinje — vrste aktivne noću, snimljene fotokamerama.',
+        'Nocturnal animals — species active at night, captured by camera traps.',
+        Tag.CATEGORY_BEHAVIOR,
+    ),
+    (
+        'migracija',
+        'Migracija',
+        'Migration',
+        'Migracija — sezonska kretanja divljih životinja.',
+        'Migration — seasonal movements of wild animals.',
+        Tag.CATEGORY_BEHAVIOR,
+    ),
+    # ---- Content type -------------------------------------------------------
+    (
+        'nocni-snimci',
+        'Noćni snimci',
+        'Night Footage',
+        'Noćni snimci — materijal snimljen noću ili infracrvenim kamerama.',
+        'Night footage — material captured at night or with infrared cameras.',
+        Tag.CATEGORY_CONTENT_TYPE,
+    ),
+    (
+        'jutarnji-snimci',
+        'Jutarnji snimci',
+        'Morning Footage',
+        'Jutarnji snimci — materijal snimljen u ranu zoru.',
+        'Morning footage — material captured at early dawn.',
+        Tag.CATEGORY_CONTENT_TYPE,
+    ),
 ]
+
+# ---------------------------------------------------------------------------
+# Known duplicate slugs that should be merged into a canonical slug.
+# Format: {old_slug: canonical_slug}
+# The canonical slug must appear in SEED_TAGS above.
+# ---------------------------------------------------------------------------
+MERGES = {
+    'smedi-medvjed': 'medvjed',
+    'divlje-svinje': 'divlja-svinja',
+}
 
 
 class Command(BaseCommand):
     help = (
-        "Seed bilingual SEO tags for Plješevica / Una wildlife content. "
-        "Safe to run multiple times — uses update_or_create by slug."
+        "Canonical idempotent normalizer for SEO/category tags. "
+        "Safe to run multiple times — updates by slug, merges duplicates."
     )
 
     def add_arguments(self, parser):
@@ -224,7 +445,6 @@ class Command(BaseCommand):
                     self.stdout.write(f"  Created:   {slug}  ({name_bs})")
                     created_count += 1
                 else:
-                    # Check if any field differs and update if so.
                     changed_fields = []
                     for field, value in defaults.items():
                         if getattr(tag, field) != value:
@@ -238,10 +458,72 @@ class Command(BaseCommand):
                         self.stdout.write(f"  Unchanged: {slug}")
                         unchanged_count += 1
 
+        # Merge duplicates.
+        self.stdout.write("")
+        merged_count, manual_review_count = self._handle_merges(dry_run)
+
         self.stdout.write("")
         self.stdout.write(
             self.style.SUCCESS(
                 f"Done — created: {created_count}, updated: {updated_count}, "
-                f"unchanged: {unchanged_count}."
+                f"unchanged: {unchanged_count}, merged: {merged_count}, "
+                f"manual_review: {manual_review_count}."
             )
         )
+
+    def _handle_merges(self, dry_run):
+        """Merge old duplicate slugs into their canonical equivalents."""
+        merged_count = 0
+        manual_review_count = 0
+
+        for old_slug, canonical_slug in MERGES.items():
+            try:
+                old_tag = Tag.objects.get(slug=old_slug)
+            except Tag.DoesNotExist:
+                self.stdout.write(f"  [merge-skip]  {old_slug} — not found, nothing to merge.")
+                continue
+
+            try:
+                canonical_tag = Tag.objects.get(slug=canonical_slug)
+            except Tag.DoesNotExist:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"  [merge-error] {old_slug} → {canonical_slug}: "
+                        f"canonical tag not found. Skipping."
+                    )
+                )
+                manual_review_count += 1
+                continue
+
+            album_qs = old_tag.albums.all()
+            video_qs = old_tag.video_clips.all()
+            media_qs = old_tag.media_items.all()
+            total_relations = album_qs.count() + video_qs.count() + media_qs.count()
+
+            if dry_run:
+                action = "merge+delete" if total_relations == 0 else f"move {total_relations} relation(s) then delete"
+                self.stdout.write(
+                    f"  [merge-dry]   {old_slug} → {canonical_slug}  ({action})"
+                )
+                merged_count += 1
+                continue
+
+            # Move M2M relationships to canonical tag.
+            for album in album_qs:
+                album.tags.add(canonical_tag)
+                album.tags.remove(old_tag)
+            for video in video_qs:
+                video.tags.add(canonical_tag)
+                video.tags.remove(old_tag)
+            for media in media_qs:
+                media.tags.add(canonical_tag)
+                media.tags.remove(old_tag)
+
+            old_tag.delete()
+            self.stdout.write(
+                f"  Merged:    {old_slug} → {canonical_slug}  "
+                f"(moved {total_relations} relation(s), deleted old tag)"
+            )
+            merged_count += 1
+
+        return merged_count, manual_review_count
