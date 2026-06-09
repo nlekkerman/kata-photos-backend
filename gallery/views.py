@@ -764,12 +764,13 @@ class AdminVideoItemListView(generics.ListAPIView):
     GET /api/gallery/admin/videos/  — paginated, filtered video list (admin only).
 
     Supports:
-      ?page=<n>&page_size=<n>   — page-number pagination (default 50, max 100)
-      ?status=<value>           — exact match on VideoClip.status
-      ?is_published=true|false  — filter by is_public (admin naming: is_published)
-      ?album=<pk>               — filter by album FK (also accepts legacy ?gallery=)
-      ?search=<query>           — icontains search across title, description,
-                                  cloudflare_uid, album title/slug, and tags
+      ?page=<n>&page_size=<n>          — page-number pagination (default 50, max 100)
+      ?status=<value>                  — exact match on VideoClip.status
+      ?is_published=true|false         — filter by is_public (admin naming: is_published)
+      ?album=<pk>                      — filter by album FK (also accepts legacy ?gallery=)
+      ?search=<query>                  — icontains search across title, description,
+                                         cloudflare_uid, album title/slug, and tags
+      ?debug=cloudflare_problem        — return only stuck/problem videos (admin debug)
     """
 
     permission_classes = [IsAdminUser]
@@ -819,6 +820,24 @@ class AdminVideoItemListView(generics.ListAPIView):
                 Q(tags__name_bs__icontains=search) |
                 Q(tags__name_en__icontains=search) |
                 Q(tags__slug__icontains=search)
+            ).distinct()
+
+        # debug=cloudflare_problem — return only stuck/problem videos (admin debug only)
+        if self.request.query_params.get('debug') == 'cloudflare_problem':
+            _PROBLEM_STATUSES = [
+                VideoClip.STATUS_UPLOADING,
+                VideoClip.STATUS_PROCESSING,
+                VideoClip.STATUS_FAILED,
+            ]
+            _PROBLEM_CF_STATES = [
+                'error', 'queued', 'inprogress', 'downloading', 'pendingupload',
+            ]
+            qs = qs.filter(
+                Q(status__in=_PROBLEM_STATUSES) |
+                Q(cloudflare_status_state__in=_PROBLEM_CF_STATES) |
+                Q(processing_warning__gt='') |
+                Q(cloudflare_error_reason_code__gt='') |
+                Q(cloudflare_error_reason_text__gt='')
             ).distinct()
 
         return qs
