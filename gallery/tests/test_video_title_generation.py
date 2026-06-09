@@ -301,3 +301,132 @@ class ResolveVideoTitlesTests(TestCase):
             now=fixed_now,
         )
         self.assertTrue(bs.strip(), "title_bs must not be blank")
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — serializer + view for blank title_bs
+# ---------------------------------------------------------------------------
+
+_FAKE_CF_RESULT = {"uid": "sertitle-uid-001", "upload_url": "https://upload.videodelivery.net/tus/sertitle-uid-001"}
+_PUBLIC_UPLOAD_URL = '/api/gallery/videos/direct-upload/'
+_ADMIN_UPLOAD_URL = '/api/gallery/admin/videos/direct-upload/'
+
+_RESOLVE_PATH = 'gallery.services.video_titles.resolve_video_titles'
+
+
+@override_settings(
+    CLOUDFLARE_ACCOUNT_ID="test_account",
+    CLOUDFLARE_STREAM_API_TOKEN="test_token",
+    CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN="customer-test.cloudflarestream.com",
+    CLOUDFLARE_STREAM_DIRECT_UPLOAD_EXPIRY_SECONDS=3600,
+    CLOUDFLARE_STREAM_WATERMARK_UID="",
+)
+class DirectUploadBlankTitleSerializerTests(TestCase):
+    """Verify serializers now accept blank title_bs and the view reaches resolve_video_titles."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from rest_framework.test import APIClient
+        from gallery.models import Album
+
+        self.client = APIClient()
+        self.staff = User.objects.create_user(username='ser_staff', password='pass', is_staff=True)
+        self.client.force_authenticate(user=self.staff)
+
+    # -- Serializer accepts blank title_bs -----------------------------------
+
+    def test_public_serializer_accepts_blank_title_bs(self):
+        from gallery.serializers import VideoClipDirectUploadRequestSerializer
+
+        ser = VideoClipDirectUploadRequestSerializer(data={
+            'title_bs': '',
+            'description_bs': 'Srna prelazi šumski put.',
+            'max_duration_seconds': 60,
+        })
+        self.assertTrue(ser.is_valid(), ser.errors)
+
+    def test_admin_serializer_accepts_blank_title_bs(self):
+        from gallery.serializers import AdminVideoDirectUploadSerializer
+
+        ser = AdminVideoDirectUploadSerializer(data={
+            'title_bs': '',
+            'description_bs': 'Medvjed na grebenu.',
+            'max_duration_seconds': 60,
+        })
+        self.assertTrue(ser.is_valid(), ser.errors)
+
+    # -- View reaches resolve_video_titles with blank title_bs ---------------
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_blank_title_bs_triggers_resolve_video_titles(self, _mock_cf):
+        """When title_bs is blank, the view calls resolve_video_titles and the result is saved."""
+        with patch(_RESOLVE_PATH, return_value=('Srna kraj Bihaća', 'Deer near Bihać')) as mock_resolve:
+            resp = self.client.post(
+                _PUBLIC_UPLOAD_URL,
+                {'title_bs': '', 'description_bs': 'Srna prelazi šumski put kod Bihaća.', 'max_duration_seconds': 60},
+                format='json',
+            )
+        self.assertEqual(resp.status_code, 201)
+        mock_resolve.assert_called_once()
+        call_kwargs = mock_resolve.call_args[1]
+        self.assertEqual(call_kwargs['title_bs'], '')
+        self.assertEqual(call_kwargs['description_bs'], 'Srna prelazi šumski put kod Bihaća.')
+
+        from gallery.models import VideoClip
+        clip = VideoClip.objects.get()
+        self.assertEqual(clip.title_bs, 'Srna kraj Bihaća')
+        self.assertEqual(clip.title_en, 'Deer near Bihać')
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_admin_blank_title_bs_triggers_resolve_video_titles(self, _mock_cf):
+        """Admin endpoint: blank title_bs calls resolve_video_titles and saves result."""
+        from gallery.models import Album
+        Album.objects.create(slug='vid-album', title_bs='Video Album', gallery_type=Album.GALLERY_TYPE_VIDEO)
+
+        with patch(_RESOLVE_PATH, return_value=('Medvjed na Plješevici', 'Bear on Plješevica')) as mock_resolve:
+            resp = self.client.post(
+                _ADMIN_UPLOAD_URL,
+                {'title_bs': '', 'description_bs': 'Medvjed se kreće grebenom.', 'max_duration_seconds': 60},
+                format='json',
+            )
+        self.assertEqual(resp.status_code, 201)
+        mock_resolve.assert_called_once()
+
+        from gallery.models import VideoClip
+        clip = VideoClip.objects.get()
+        self.assertEqual(clip.title_bs, 'Medvjed na Plješevici')
+
+    # -- Human-provided title_bs still wins ----------------------------------
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_provided_title_bs_is_not_overwritten(self, _mock_cf):
+        """When title_bs is non-blank, resolve_video_titles preserves it."""
+        with patch(_RESOLVE_PATH, return_value=('Orao nad planinom', 'Eagle above the mountain')) as mock_resolve:
+            resp = self.client.post(
+                _PUBLIC_UPLOAD_URL,
+                {'title_bs': 'Orao nad planinom', 'description_bs': 'Opis orla.', 'max_duration_seconds': 60},
+                format='json',
+            )
+        self.assertEqual(resp.status_code, 201)
+        call_kwargs = mock_resolve.call_args[1]
+        self.assertEqual(call_kwargs['title_bs'], 'Orao nad planinom')
+
+        from gallery.models import VideoClip
+        clip = VideoClip.objects.get()
+        self.assertEqual(clip.title_bs, 'Orao nad planinom')
+
+    # -- Fallback still produces non-blank title if OpenAI returns None ------
+
+    @patch('gallery.services.cloudflare_stream.create_direct_upload', return_value=_FAKE_CF_RESULT)
+    def test_fallback_produces_non_blank_title_when_ai_fails(self, _mock_cf):
+        """resolve_video_titles fallbacks guarantee a non-blank title_bs even when AI returns None."""
+        with override_settings(OPENAI_API_KEY=""):
+            resp = self.client.post(
+                _PUBLIC_UPLOAD_URL,
+                {'title_bs': '', 'description_bs': 'Srna prelazi šumski put.', 'max_duration_seconds': 60},
+                format='json',
+            )
+        self.assertEqual(resp.status_code, 201)
+        from gallery.models import VideoClip
+        clip = VideoClip.objects.get()
+        self.assertTrue(clip.title_bs.strip(), "title_bs must not be blank even when OpenAI is unavailable")

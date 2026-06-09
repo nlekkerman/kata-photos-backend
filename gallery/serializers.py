@@ -552,7 +552,7 @@ class VideoClipDirectUploadRequestSerializer(serializers.Serializer):
     album = serializers.PrimaryKeyRelatedField(
         queryset=Album.objects.all(), required=False, allow_null=True, default=None
     )
-    title_bs = serializers.CharField(max_length=255)
+    title_bs = serializers.CharField(max_length=255, allow_blank=True, default="")
     title_en = serializers.CharField(max_length=255, allow_blank=True, default="")
     description_bs = serializers.CharField(allow_blank=True, default="")
     description_en = serializers.CharField(allow_blank=True, default="")
@@ -996,7 +996,7 @@ class AdminVideoDirectUploadSerializer(serializers.Serializer):
         allow_null=True,
         default=None,
     )
-    title_bs = serializers.CharField(max_length=255)
+    title_bs = serializers.CharField(max_length=255, allow_blank=True, default="")
     title_en = serializers.CharField(max_length=255, allow_blank=True, default="")
     description_bs = serializers.CharField(allow_blank=True, default="")
     description_en = serializers.CharField(allow_blank=True, default="")
