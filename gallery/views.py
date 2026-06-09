@@ -902,9 +902,12 @@ class AdminVideoDirectUploadView(generics.GenericAPIView):
             submitted_title_bs=submitted_title_bs,
             title_source=title_source,
         )
+        tags = data.get('tags', [])
+        if tags:
+            video.tags.set(tags)
         logger.info(
-            "video_upload: VideoClip pk=%s created cf_uid=%r title_source=%r",
-            video.pk, cf_result['uid'], title_source,
+            "video_upload: VideoClip pk=%s created cf_uid=%r title_source=%r tags=%s",
+            video.pk, cf_result['uid'], title_source, [t.pk for t in tags],
         )
 
         return Response(

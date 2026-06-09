@@ -7,9 +7,33 @@ from django.utils.text import slugify
 
 
 class Tag(models.Model):
+    CATEGORY_LOCATION = 'location'
+    CATEGORY_SPECIES = 'species'
+    CATEGORY_HABITAT = 'habitat'
+    CATEGORY_BEHAVIOR = 'behavior'
+    CATEGORY_CONTENT_TYPE = 'content_type'
+    CATEGORY_GENERAL = 'general'
+
+    CATEGORY_CHOICES = [
+        (CATEGORY_LOCATION, 'Location'),
+        (CATEGORY_SPECIES, 'Species'),
+        (CATEGORY_HABITAT, 'Habitat'),
+        (CATEGORY_BEHAVIOR, 'Behavior'),
+        (CATEGORY_CONTENT_TYPE, 'Content Type'),
+        (CATEGORY_GENERAL, 'General'),
+    ]
+
     name_bs = models.CharField(max_length=100)
     name_en = models.CharField(max_length=100, blank=True)
     slug = models.SlugField(max_length=120, unique=True)
+    category = models.CharField(
+        max_length=40,
+        choices=CATEGORY_CHOICES,
+        default=CATEGORY_GENERAL,
+        db_index=True,
+    )
+    description_bs = models.TextField(blank=True)
+    description_en = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -93,7 +117,7 @@ class MediaItem(models.Model):
     description = models.TextField(blank=True)
     alt_text = models.CharField(max_length=500, blank=True)
     caption = models.CharField(max_length=500, blank=True)
-    tags = models.JSONField(default=list, blank=True)
+    tags = models.ManyToManyField('Tag', blank=True, related_name='media_items')
     is_published = models.BooleanField(default=False)
     display_order = models.PositiveIntegerField(default=0)
     title_en = models.CharField(max_length=200, blank=True)

@@ -50,7 +50,7 @@ class TagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Tag
-        fields = ['id', 'name_bs', 'name_en', 'slug']
+        fields = ['id', 'slug', 'name_bs', 'name_en', 'description_bs', 'description_en', 'category']
 
 
 class TagWriteSerializer(serializers.ModelSerializer):
@@ -60,7 +60,11 @@ class TagWriteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Tag
-        fields = ['id', 'name_bs', 'name_en', 'slug', 'created_at', 'updated_at']
+        fields = [
+            'id', 'slug', 'name_bs', 'name_en',
+            'description_bs', 'description_en', 'category',
+            'created_at', 'updated_at',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
         extra_kwargs = {
             'name_bs': {'required': True, 'allow_blank': False},
@@ -162,8 +166,11 @@ class AlbumWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
         return data
 
 
-class MediaItemWriteSerializer(serializers.ModelSerializer):
+class MediaItemWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
     original_file = serializers.ImageField(required=False)
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False
+    )
 
     def validate_original_file(self, file):
         """Reject files that are too large or have an unsupported content type."""
@@ -393,6 +400,7 @@ class MediaItemPublicSerializer(serializers.ModelSerializer):
     facebook_share_url = serializers.SerializerMethodField()
     frontend_url = serializers.SerializerMethodField()
     is_shareable = serializers.SerializerMethodField()
+    tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
         model = MediaItem
@@ -763,6 +771,7 @@ class AdminImageItemSerializer(serializers.ModelSerializer):
         source='album', slug_field='slug', read_only=True
     )
     gallery_title_bs = serializers.CharField(source='album.title_bs', read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
         model = MediaItem
@@ -778,6 +787,7 @@ class AdminImageItemSerializer(serializers.ModelSerializer):
             'provider_public_id',
             'public_url',
             'thumbnail_url',
+            'tags',
             'is_published',
             'display_order',
             'width',
@@ -788,7 +798,7 @@ class AdminImageItemSerializer(serializers.ModelSerializer):
         ]
 
 
-class AdminImageItemWriteSerializer(serializers.ModelSerializer):
+class AdminImageItemWriteSerializer(_TagsM2MMixin, serializers.ModelSerializer):
     """Write serializer for creating/updating image items (admin only).
 
     On create: ``album`` (PK of an image gallery) and ``original_file`` are required.
@@ -800,6 +810,9 @@ class AdminImageItemWriteSerializer(serializers.ModelSerializer):
         required=False,
     )
     original_file = serializers.ImageField(required=False)
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False
+    )
 
     def validate_original_file(self, file):
         max_bytes = MAX_IMAGE_UPLOAD_SIZE_MB * 1024 * 1024
@@ -1017,6 +1030,9 @@ class AdminVideoDirectUploadSerializer(serializers.Serializer):
     description_en = serializers.CharField(allow_blank=True, default="")
     max_duration_seconds = serializers.IntegerField(required=False, default=300)
     original_filename = serializers.CharField(max_length=255, allow_blank=True, default="")
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), many=True, required=False
+    )
 
     def validate_max_duration_seconds(self, value):
         if value <= 0:
