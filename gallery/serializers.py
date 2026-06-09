@@ -474,50 +474,73 @@ class FieldNoteCoverSerializer(serializers.ModelSerializer):
         return _get_thumbnail_url(obj, request)
 
     def get_alt_text(self, obj):
-        lang = self.context.get('lang', 'en')
+        lang = self.context.get('lang', 'bs')
         return resolve_translated(obj, 'alt_text', lang)
-
-
 class FieldNoteListSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     excerpt = serializers.SerializerMethodField()
+    location = serializers.SerializerMethodField()
     cover_image = FieldNoteCoverSerializer(read_only=True)
 
     class Meta:
         model = FieldNote
-        fields = ['id', 'slug', 'title', 'excerpt', 'location', 'published_at', 'cover_image']
+        fields = [
+            'id',
+            'slug',
+            'title',
+            'excerpt',
+            'location',
+            'published_at',
+            'cover_image',
+        ]
 
     def get_title(self, obj):
-        lang = self.context.get('lang', 'en')
+        lang = self.context.get('lang', 'bs')
         return resolve_translated(obj, 'title', lang)
 
     def get_excerpt(self, obj):
-        lang = self.context.get('lang', 'en')
+        lang = self.context.get('lang', 'bs')
         return resolve_translated(obj, 'excerpt', lang)
 
+    def get_location(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'location', lang)
 
 class FieldNoteDetailSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     excerpt = serializers.SerializerMethodField()
     body = serializers.SerializerMethodField()
+    location = serializers.SerializerMethodField()
     cover_image = FieldNoteCoverSerializer(read_only=True)
 
     class Meta:
         model = FieldNote
-        fields = ['id', 'slug', 'title', 'excerpt', 'body', 'location', 'published_at', 'cover_image']
+        fields = [
+            'id',
+            'slug',
+            'title',
+            'excerpt',
+            'body',
+            'location',
+            'published_at',
+            'cover_image',
+        ]
 
     def get_title(self, obj):
-        lang = self.context.get('lang', 'en')
+        lang = self.context.get('lang', 'bs')
         return resolve_translated(obj, 'title', lang)
 
     def get_excerpt(self, obj):
-        lang = self.context.get('lang', 'en')
+        lang = self.context.get('lang', 'bs')
         return resolve_translated(obj, 'excerpt', lang)
 
     def get_body(self, obj):
-        lang = self.context.get('lang', 'en')
+        lang = self.context.get('lang', 'bs')
         return resolve_translated(obj, 'body', lang)
 
+    def get_location(self, obj):
+        lang = self.context.get('lang', 'bs')
+        return resolve_translated(obj, 'location', lang)
 
 # ---------------------------------------------------------------------------
 # VideoClip serializers
