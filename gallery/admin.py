@@ -90,31 +90,91 @@ class MediaItemAdmin(admin.ModelAdmin):
 
 @admin.register(FieldNote)
 class FieldNoteAdmin(admin.ModelAdmin):
-    list_display = ('title_en', 'slug', 'is_published', 'published_at', 'created_at')
-    list_filter = ('is_published',)
-    search_fields = ('title_en', 'slug', 'location')
-    ordering = ('-published_at', '-created_at')
-    readonly_fields = ('created_at', 'updated_at')
-    prepopulated_fields = {'slug': ('title_en',)}
-    fieldsets = (
-        ('Publishing', {
-            'fields': ('slug', 'is_published', 'published_at', 'cover_image'),
-        }),
-        ('English Content', {
-            'fields': ('title_en', 'excerpt_en', 'body_en'),
-        }),
-        ('Bosnian Content', {
-            'fields': ('title_bs', 'excerpt_bs', 'body_bs'),
-        }),
-        ('Location', {
-            'fields': ('location',),
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',),
-        }),
+    list_display = (
+        'title_bs',
+        'title_en',
+        'slug',
+        'location_bs',
+        'is_published',
+        'published_at',
+        'created_at',
     )
 
+    list_filter = (
+        'is_published',
+        'published_at',
+        'created_at',
+    )
+
+    search_fields = (
+        'title_bs',
+        'title_en',
+        'slug',
+        'excerpt_bs',
+        'excerpt_en',
+        'body_bs',
+        'body_en',
+        'location_bs',
+        'location_en',
+    )
+
+    ordering = (
+        '-published_at',
+        '-created_at',
+    )
+
+    readonly_fields = (
+        'created_at',
+        'updated_at',
+    )
+
+    fieldsets = (
+        (
+            'Publishing',
+            {
+                'fields': (
+                    'slug',
+                    'is_published',
+                    'published_at',
+                    'cover_image',
+                ),
+            },
+        ),
+        (
+            'Bosnian Content',
+            {
+                'fields': (
+                    'title_bs',
+                    'excerpt_bs',
+                    'body_bs',
+                    'location_bs',
+                ),
+            },
+        ),
+        (
+            'English Translation',
+            {
+                'fields': (
+                    'title_en',
+                    'excerpt_en',
+                    'body_en',
+                    'location_en',
+                ),
+            },
+        ),
+        (
+            'System',
+            {
+                'fields': (
+                    'created_at',
+                    'updated_at',
+                ),
+                'classes': (
+                    'collapse',
+                ),
+            },
+        ),
+    )
 
 @admin.register(VideoClip)
 class VideoClipAdmin(admin.ModelAdmin):

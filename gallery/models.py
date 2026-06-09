@@ -183,18 +183,19 @@ class MediaItem(models.Model):
 
 
 class FieldNote(models.Model):
-    slug = models.SlugField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=200, unique=True, blank=True)
 
-    title_en = models.CharField(max_length=200)
-    title_bs = models.CharField(max_length=200, blank=True)
+    title_bs = models.CharField(max_length=200)
+    title_en = models.CharField(max_length=200, blank=True)
 
-    excerpt_en = models.TextField(blank=True)
     excerpt_bs = models.TextField(blank=True)
+    excerpt_en = models.TextField(blank=True)
 
-    body_en = models.TextField()
-    body_bs = models.TextField(blank=True)
+    body_bs = models.TextField()
+    body_en = models.TextField(blank=True)
 
-    location = models.CharField(max_length=200, blank=True)
+    location_bs = models.CharField(max_length=200, blank=True)
+    location_en = models.CharField(max_length=200, blank=True)
 
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
@@ -212,20 +213,43 @@ class FieldNote(models.Model):
 
     class Meta:
         ordering = ['-published_at', '-created_at']
+        indexes = [
+            models.Index(fields=['is_published', '-published_at']),
+            models.Index(fields=['slug']),
+        ]
 
     def clean(self):
+        errors = {}
+
         if self.is_published:
-            errors = {}
-            if not self.title_en:
-                errors['title_en'] = 'Title (English) is required before publishing.'
-            if not self.body_en:
-                errors['body_en'] = 'Body (English) is required before publishing.'
-            if errors:
-                raise ValidationError(errors)
+            if not self.title_bs:
+                errors['title_bs'] = 'Title (Bosnian) is required before publishing.'
+            if not self.body_bs:
+                errors['body_bs'] = 'Body (Bosnian) is required before publishing.'
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        if self.is_published and self.published_at is None:
+            self.published_at = timezone.now()
+
+        if not self.slug:
+            base_slug = slugify(self.title_en or self.title_bs) or "field-note"
+            slug = base_slug
+            counter = 2
+
+            while FieldNote.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            self.slug = slug
+
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.title_en or f'FieldNote {self.pk}'
-
+        return self.title_bs or self.title_en or f'FieldNote {self.pk}'
 
 class VideoClip(models.Model):
     STATUS_UPLOADING = 'uploading'
