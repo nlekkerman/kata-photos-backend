@@ -479,6 +479,11 @@ def _save_media_item_with_cloudflare(serializer, *, album, extra_save_kwargs=Non
     ``serializer`` must already be validated.
     ``album`` is the Album instance to associate with the MediaItem.
     ``extra_save_kwargs`` are merged into the ``serializer.save()`` call.
+
+    Production guard: when ``DEBUG=False``, a file upload without Cloudflare
+    Images credentials is rejected immediately.  Local fallback is only allowed
+    in development (``DEBUG=True``) or when no file is attached (metadata-only
+    saves, which are provider-agnostic).
     """
     from PIL import Image as PilImage
 
@@ -487,12 +492,25 @@ def _save_media_item_with_cloudflare(serializer, *, album, extra_save_kwargs=Non
     extra = extra_save_kwargs or {}
     cf_account_id = settings.CLOUDFLARE_ACCOUNT_ID
     cf_token = settings.CLOUDFLARE_IMAGES_API_TOKEN
+    uploaded_file = serializer.validated_data.get('original_file')
+    cf_configured = bool(cf_account_id and cf_token)
 
-    if not (cf_account_id and cf_token and serializer.validated_data.get('original_file')):
+    if not uploaded_file:
+        # Metadata-only save — no file to upload; always allowed.
         serializer.save(album=album, provider='local', media_type='image', is_published=True, **extra)
         return
 
-    uploaded_file = serializer.validated_data['original_file']
+    if not cf_configured:
+        # File present but Cloudflare Images credentials are missing.
+        if not settings.DEBUG:
+            raise CloudflareServiceError(
+                detail="Cloudflare Images is not configured for production image uploads."
+            )
+        # DEBUG=True: fall back to local storage for development convenience.
+        serializer.save(album=album, provider='local', media_type='image', is_published=True, **extra)
+        return
+
+    # Both credentials and file are present — upload to Cloudflare Images.
     raw = uploaded_file.file
     raw.seek(0)
     file_bytes = raw.read()
