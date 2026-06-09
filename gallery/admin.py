@@ -23,7 +23,9 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(Album)
 class AlbumAdmin(admin.ModelAdmin):
-    list_display = ('title_bs', 'slug', 'gallery_type', 'is_published', 'display_order', 'created_at')
+    list_display = ('id', 'title_bs', 'title_en', 'slug', 'gallery_type', 'is_published', 'display_order', 'created_at')
+    list_display_links = ('id', 'slug')
+    list_editable = ('title_bs', 'title_en', 'is_published', 'display_order')
     list_filter = ('is_published', 'gallery_type')
     search_fields = ('title_bs', 'title_en', 'slug')
     ordering = ('gallery_type', 'display_order', 'title_bs')
