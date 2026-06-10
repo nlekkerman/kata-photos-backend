@@ -92,6 +92,8 @@ INSTALLED_APPS = [
     'corsheaders',
 
     "gallery",
+    # Kata Wild canonical apps
+    "audit.apps.AuditConfig",
 ]
 
 MIDDLEWARE = [
