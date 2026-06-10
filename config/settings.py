@@ -94,6 +94,9 @@ INSTALLED_APPS = [
     "gallery",
     # Kata Wild canonical apps
     "audit.apps.AuditConfig",
+    "organizations.apps.OrganizationsConfig",
+    "access.apps.AccessConfig",
+    "projects.apps.ProjectsConfig",
 ]
 
 MIDDLEWARE = [
