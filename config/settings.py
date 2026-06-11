@@ -97,6 +97,9 @@ INSTALLED_APPS = [
     "organizations.apps.OrganizationsConfig",
     "access.apps.AccessConfig",
     "projects.apps.ProjectsConfig",
+    "taxonomy.apps.TaxonomyConfig",
+    "locations.apps.LocationsConfig",
+    "monitoring.apps.MonitoringConfig",
 ]
 
 MIDDLEWARE = [

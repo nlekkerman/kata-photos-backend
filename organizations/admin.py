@@ -14,7 +14,14 @@ class OrganizationAdmin(admin.ModelAdmin):
 
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
-    list_display = ("user", "organization", "status", "created_at")
-    list_filter = ("status", "organization")
-    search_fields = ("user__username", "user__email", "organization__name")
+    list_display = ("user", "organization", "role", "status", "created_at")
+    list_filter = ("status", "organization", "role")
+    search_fields = (
+        "user__username",
+        "user__email",
+        "organization__name",
+        "role__name",
+        "role__code",
+    )
+    autocomplete_fields = ("organization", "role")
     readonly_fields = ("created_at", "updated_at")

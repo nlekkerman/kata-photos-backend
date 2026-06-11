@@ -23,6 +23,14 @@ class Membership(models.Model):
         related_name="memberships",
     )
 
+    role = models.ForeignKey(
+        "access.Role",
+        on_delete=models.PROTECT,
+        related_name="memberships",
+        null=True,
+        blank=True,
+    )
+
     status = models.CharField(
         max_length=30,
         choices=MembershipStatus.choices,
@@ -42,4 +50,4 @@ class Membership(models.Model):
         ordering = ["organization__name", "user__username"]
 
     def __str__(self):
-        return f"{self.user} - {self.organization}"
+        return f"{self.user} - {self.organization} - {self.status}"
