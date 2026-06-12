@@ -21,10 +21,12 @@ class CameraDeploymentInline(admin.TabularInline):
         "started_at",
         "ended_at",
         "status",
+        "created_by",
     )
     autocomplete_fields = (
         "project",
         "monitoring_point",
+        "created_by",
     )
 
 

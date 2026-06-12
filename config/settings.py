@@ -100,6 +100,8 @@ INSTALLED_APPS = [
     "taxonomy.apps.TaxonomyConfig",
     "locations.apps.LocationsConfig",
     "monitoring.apps.MonitoringConfig",
+    "evidence.apps.EvidenceConfig",
+    "observations.apps.ObservationsConfig",
 ]
 
 MIDDLEWARE = [
