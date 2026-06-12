@@ -7,23 +7,47 @@ class Command(BaseCommand):
     help = "Backfill BS/EN titles and descriptions for confirmed wolf videos by current production title."
 
     VIDEO_TEXTS_BY_CURRENT_TITLE = {
-        "Video upload 2026-06-12 11:35": {
-            "title_bs": "Vukovi na pojilu",
-            "description_bs": "Dva vuka se zadržavaju kod prirodnog blatnjavog pojila.",
-            "title_en": "Wolves at Waterhole",
-            "description_en": "Two wolves staying near a natural muddy waterhole.",
+        "Video upload 2026-06-12 14:09": {
+            "title_bs": "Vuk",
+            "description_bs": "Vuk na Plješevici, Bihać, Bosna i Hercegovina.",
+            "title_en": "Wolf",
+            "description_en": "Wolf on Plješevica, Bihać, Bosnia and Herzegovina.",
         },
-        "Video upload 2026-06-12 11:20": {
-            "title_bs": "Vuk kod pojila",
-            "description_bs": "Vuk stoji uz prirodno blatnjavo pojilo u šumi.",
-            "title_en": "Wolf at Waterhole",
-            "description_en": "A wolf standing near a natural muddy waterhole in the forest.",
+        "Video upload 2026-06-12 14:07": {
+            "title_bs": "Vuk",
+            "description_bs": "Vuk na Plješevici, Bihać, Bosna i Hercegovina.",
+            "title_en": "Wolf",
+            "description_en": "Wolf on Plješevica, Bihać, Bosnia and Herzegovina.",
         },
-        "Vukovi": {
-            "title_bs": "Vukovi u šumi",
-            "description_bs": "Vukovi se kreću kroz šumski prostor kod blatnjavog pojila.",
-            "title_en": "Wolves in Forest",
-            "description_en": "Wolves moving through the forest near a muddy waterhole.",
+        "Video upload 2026-06-12 13:59": {
+            "title_bs": "Vuk",
+            "description_bs": "Vuk na Plješevici, Bihać, Bosna i Hercegovina.",
+            "title_en": "Wolf",
+            "description_en": "Wolf on Plješevica, Bihać, Bosnia and Herzegovina.",
+        },
+        "Video upload 2026-06-12 13:53": {
+            "title_bs": "Vuk",
+            "description_bs": "Vuk na Plješevici, Bihać, Bosna i Hercegovina.",
+            "title_en": "Wolf",
+            "description_en": "Wolf on Plješevica, Bihać, Bosnia and Herzegovina.",
+        },
+        "Video upload 2026-06-12 13:50": {
+            "title_bs": "Vuk",
+            "description_bs": "Vuk na Plješevici, Bihać, Bosna i Hercegovina.",
+            "title_en": "Wolf",
+            "description_en": "Wolf on Plješevica, Bihać, Bosnia and Herzegovina.",
+        },
+        "Video upload 2026-06-12 13:48": {
+            "title_bs": "Vuk",
+            "description_bs": "Vuk na Plješevici, Bihać, Bosna i Hercegovina.",
+            "title_en": "Wolf",
+            "description_en": "Wolf on Plješevica, Bihać, Bosnia and Herzegovina.",
+        },
+        "Video upload 2026-06-12 13:45": {
+            "title_bs": "Vuk",
+            "description_bs": "Vuk na Plješevici, Bihać, Bosna i Hercegovina.",
+            "title_en": "Wolf",
+            "description_en": "Wolf on Plješevica, Bihać, Bosnia and Herzegovina.",
         },
     }
 
@@ -64,6 +88,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Matched video ID: {video.id}")
             self.stdout.write(f"Current title_bs: {video.title_bs}")
             self.stdout.write(f"Current title_en: {video.title_en}")
+            self.stdout.write(f"Current is_public: {video.is_public}")
             self.stdout.write(f"New title_bs: {text_data['title_bs']}")
             self.stdout.write(f"New title_en: {text_data['title_en']}")
 
@@ -85,11 +110,7 @@ class Command(BaseCommand):
                 updated_count += 1
 
         if apply_changes:
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Done. Updated {updated_count} videos. Skipped {skipped_count}."
-                )
-            )
+            self.stdout.write(self.style.SUCCESS(f"Done. Updated {updated_count} videos. Skipped {skipped_count}."))
         else:
             self.stdout.write(
                 self.style.WARNING(
