@@ -4,6 +4,7 @@ from .models import (
     Observation,
     ObservationEvidenceLink,
     ObservationReview,
+    ObservationRevision,
     ObservationTaxon,
 )
 
@@ -70,6 +71,31 @@ class ObservationReviewInline(admin.TabularInline):
         "reviewed_at",
         "review_notes",
     ]
+
+class ObservationRevisionInline(admin.TabularInline):
+    """
+    Inline revision trail for MVP admin smoke testing.
+
+    Full automatic revision creation and audit integration come later.
+    """
+
+    model = ObservationRevision
+    extra = 1
+    autocomplete_fields = ["changed_by"]
+    fields = [
+        "revision_type",
+        "changed_by",
+        "reason",
+        "previous_observation_status",
+        "new_observation_status",
+        "previous_verification_status",
+        "new_verification_status",
+        "previous_taxon_summary",
+        "new_taxon_summary",
+        "notes",
+        "created_at",
+    ]
+    readonly_fields = ["created_at"]
 
 
 @admin.register(Observation)
@@ -209,6 +235,8 @@ class ObservationAdmin(admin.ModelAdmin):
         ObservationEvidenceLinkInline,
         ObservationTaxonInline,
         ObservationReviewInline,
+        ObservationRevisionInline,
+        
     ]
 
 
@@ -331,4 +359,43 @@ class ObservationReviewAdmin(admin.ModelAdmin):
     readonly_fields = [
         "created_at",
         "updated_at",
+    ]
+
+@admin.register(ObservationRevision)
+class ObservationRevisionAdmin(admin.ModelAdmin):
+    """
+    Standalone admin for Observation revision/history records.
+
+    MVP purpose:
+    - Manually preserve scientific correction history.
+    - Keep changes reviewable before automatic services/audit exist.
+    """
+
+    list_display = [
+        "observation",
+        "revision_type",
+        "changed_by",
+        "created_at",
+    ]
+
+    list_filter = [
+        "revision_type",
+        "created_at",
+    ]
+
+    search_fields = [
+        "observation__code",
+        "reason",
+        "previous_taxon_summary",
+        "new_taxon_summary",
+        "notes",
+    ]
+
+    autocomplete_fields = [
+        "observation",
+        "changed_by",
+    ]
+
+    readonly_fields = [
+        "created_at",
     ]
