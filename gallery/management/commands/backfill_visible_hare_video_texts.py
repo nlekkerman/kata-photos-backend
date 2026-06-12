@@ -4,26 +4,14 @@ from gallery.models import VideoClip
 
 
 class Command(BaseCommand):
-    help = "Backfill BS/EN titles and descriptions for confirmed hare videos by current production title."
+    help = "Backfill BS/EN titles and descriptions for confirmed marten videos by current production title."
 
     VIDEO_TEXTS_BY_CURRENT_TITLE = {
-        "Video upload 2026-06-12 17:36": {
-            "title_bs": "Zec",
-            "description_bs": "Zec na Plješevici, Bihać, Bosna i Hercegovina.",
-            "title_en": "Hare",
-            "description_en": "Hare on Plješevica, Bihać, Bosnia and Herzegovina.",
-        },
-        "Video upload 2026-06-12 17:33": {
-            "title_bs": "Zec",
-            "description_bs": "Zec na Plješevici, Bihać, Bosna i Hercegovina.",
-            "title_en": "Hare",
-            "description_en": "Hare on Plješevica, Bihać, Bosnia and Herzegovina.",
-        },
-        "Video upload 2026-06-12 17:30": {
-            "title_bs": "Zec",
-            "description_bs": "Zec na Plješevici, Bihać, Bosna i Hercegovina.",
-            "title_en": "Hare",
-            "description_en": "Hare on Plješevica, Bihać, Bosnia and Herzegovina.",
+        "Video upload 2026-06-12 17:23": {
+            "title_bs": "Kuna",
+            "description_bs": "Kuna na Plješevici, Bihać, Bosna i Hercegovina.",
+            "title_en": "Marten",
+            "description_en": "Marten on Plješevica, Bihać, Bosnia and Herzegovina.",
         },
     }
 
@@ -39,7 +27,7 @@ class Command(BaseCommand):
         updated_count = 0
         skipped_count = 0
 
-        self.stdout.write(self.style.WARNING("Matching confirmed hare videos by current production title..."))
+        self.stdout.write(self.style.WARNING("Matching confirmed marten videos by current production title..."))
 
         for current_title, text_data in self.VIDEO_TEXTS_BY_CURRENT_TITLE.items():
             matches = VideoClip.objects.filter(title_bs=current_title)
