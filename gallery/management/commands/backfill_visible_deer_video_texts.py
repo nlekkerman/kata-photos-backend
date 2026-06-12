@@ -7,6 +7,24 @@ class Command(BaseCommand):
     help = "Backfill BS/EN titles and descriptions for confirmed deer videos by production ID."
 
     VIDEO_TEXTS_BY_ID = {
+        55: {
+            "title_bs": "Srne na pojilu",
+            "description_bs": "Dvije srne se zadržavaju kod prirodnog pojila.",
+            "title_en": "Does at Waterhole",
+            "description_en": "Two does staying near a natural waterhole.",
+        },
+        54: {
+            "title_bs": "Srndać na pojilu",
+            "description_bs": "Srndać pije vodu iz prirodnog blatnjavog pojila.",
+            "title_en": "Roe Buck at Waterhole",
+            "description_en": "A roe buck drinking from a natural muddy waterhole.",
+        },
+        53: {
+            "title_bs": "Srndać u šumi",
+            "description_bs": "Srndać se hrani u šumskom prostoru.",
+            "title_en": "Roe Buck in Forest",
+            "description_en": "A roe buck feeding in the forest.",
+        },
         52: {
             "title_bs": "Oprezna srna",
             "description_bs": "Srna oprezno stoji i osluškuje okolinu.",
