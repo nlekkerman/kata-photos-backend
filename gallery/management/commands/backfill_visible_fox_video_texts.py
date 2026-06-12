@@ -9,42 +9,18 @@ class Command(BaseCommand):
     VIDEO_TEXTS_BY_CURRENT_TITLE = {
         "Video upload 2026-06-12 13:42": {
             "title_bs": "Lisica",
-            "description_bs": "Lisica se kreće uz prirodno blatnjavo pojilo na Plješevici, Bihać, Bosna i Hercegovina.",
+            "description_bs": "Lisica na Plješevici, Bihać, Bosna i Hercegovina.",
             "title_en": "Fox",
-            "description_en": "A fox moving near a natural muddy waterhole on Plješevica, Bihać, Bosnia and Herzegovina.",
+            "description_en": "A fox on Plješevica, Bihać, Bosnia and Herzegovina.",
         },
         "Video upload 2026-06-12 13:36": {
             "title_bs": "Lisica",
-            "description_bs": "Lisica se zadržava kod prirodnog blatnjavog pojila u šumskom području Plješevice, Bihać, Bosna i Hercegovina.",
+            "description_bs": "Lisica na Plješevici, Bihać, Bosna i Hercegovina.",
             "title_en": "Fox",
-            "description_en": "A fox staying near a natural muddy waterhole in the forest area of Plješevica, Bihać, Bosnia and Herzegovina.",
-        },
-        "Video upload 2026-06-12 13:18": {
-            "title_bs": "Lisica",
-            "description_bs": "Lisica se kreće uz prirodno blatnjavo pojilo na Plješevici, Bihać, Bosna i Hercegovina.",
-            "title_en": "Fox",
-            "description_en": "A fox moving near a natural muddy waterhole on Plješevica, Bihać, Bosnia and Herzegovina.",
-        },
-        "Video upload 2026-06-12 13:15": {
-            "title_bs": "Lisica",
-            "description_bs": "Lisica prolazi pored prirodnog blatnjavog pojila u šumi na Plješevici, Bihać, Bosna i Hercegovina.",
-            "title_en": "Fox",
-            "description_en": "A fox passing by a natural muddy waterhole in the forest on Plješevica, Bihać, Bosnia and Herzegovina.",
-        },
-        "Video upload 2026-06-12 13:13": {
-            "title_bs": "Lisica",
-            "description_bs": "Lisica leži i odmara u šumskom području Plješevice, Bihać, Bosna i Hercegovina.",
-            "title_en": "Fox",
-            "description_en": "A fox lying down and resting in the forest area of Plješevica, Bihać, Bosnia and Herzegovina.",
-        },
-        "Video upload 2026-06-12 13:12": {
-            "title_bs": "Lisica",
-            "description_bs": "Lisica se zadržava kod male blatnjave vode u šumi na Plješevici, Bihać, Bosna i Hercegovina.",
-            "title_en": "Fox",
-            "description_en": "A fox staying near a small muddy waterhole in the forest on Plješevica, Bihać, Bosnia and Herzegovina.",
+            "description_en": "A fox on Plješevica, Bihać, Bosnia and Herzegovina.",
         },
     }
-    
+        
     def add_arguments(self, parser):
         parser.add_argument(
             "--apply",
