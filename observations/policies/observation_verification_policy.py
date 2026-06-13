@@ -190,3 +190,33 @@ def can_reject_observation(
         organization=organization,
         capability_code="reject_observations",
     )
+
+def can_reopen_observation(*, user, observation, organization=None):
+    """
+    Decide whether a rejected observation can be reopened for review.
+
+    MVP purpose:
+    - Reopening rejected observations is a protected scientific workflow action.
+    - Reopen does not verify the observation.
+    - Reopen only returns it to review workflow.
+    """
+
+    base_result = can_review_observation(
+        user=user,
+        observation=observation,
+        organization=organization,
+    )
+
+    if not base_result.allowed:
+        return base_result
+
+    if observation.observation_status != observation.ObservationStatus.REJECTED:
+        return ObservationVerificationResult(
+            allowed=False,
+            reason="Only rejected observations can be reopened through this workflow.",
+        )
+
+    return ObservationVerificationResult(
+        allowed=True,
+        reason="Observation reopen allowed.",
+    )

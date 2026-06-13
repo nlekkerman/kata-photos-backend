@@ -9,6 +9,16 @@ from .observation_verification_service import (
     ObservationVerificationServiceResult,
     verify_observation,
 )
+from .observation_rejection_service import (
+    ObservationRejectionDenied,
+    ObservationRejectionServiceResult,
+    reject_observation,
+)
+from .observation_reopen_service import (
+    ObservationReopenDenied,
+    ObservationReopenServiceResult,
+    reopen_observation,
+)
 
 __all__ = [
     "ObservationPublicationDenied",
@@ -18,4 +28,10 @@ __all__ = [
     "publish_observation",
     "unpublish_observation",
     "verify_observation",
+    "ObservationRejectionDenied",
+    "ObservationRejectionServiceResult",
+    "reject_observation",
+    "ObservationReopenDenied",
+    "ObservationReopenServiceResult",
+    "reopen_observation",
 ]

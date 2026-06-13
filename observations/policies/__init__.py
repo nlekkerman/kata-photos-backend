@@ -12,6 +12,7 @@ from .observation_publication_policy import (
 from .observation_verification_policy import (
     ObservationVerificationResult,
     can_reject_observation,
+    can_reopen_observation,
     can_review_observation,
     can_verify_observation,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "ObservationVerificationResult",
     "can_publish_observation",
     "can_reject_observation",
+    "can_reopen_observation",
     "can_review_observation",
     "can_unpublish_observation",
     "can_verify_observation",

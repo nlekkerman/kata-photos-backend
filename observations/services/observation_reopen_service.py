@@ -10,7 +10,7 @@ from observations.models.observation import Observation
 from observations.models.observation_review import ObservationReview
 from observations.models.observation_revision import ObservationRevision
 from observations.policies.observation_verification_policy import (
-    can_verify_observation,
+    can_reopen_observation,
 )
 from observations.services.observation_audit_service import (
     _observation_status_snapshot,
@@ -20,21 +20,20 @@ from observations.validators.observation_transition_validator import (
     require_observation_transition,
 )
 
-
-class ObservationVerificationDenied(Exception):
+class ObservationReopenDenied(Exception):
     """
-    Raised when a user is not allowed to verify an observation.
+    Raised when a user is not allowed to reopen a rejected observation.
 
     MVP purpose:
-    - Keep service-level permission failures explicit.
-    - Avoid silently changing canonical scientific truth.
+    - Keep rejected observation recovery explicit.
+    - Avoid weakening normal verification workflow.
     """
 
 
 @dataclass(frozen=True)
-class ObservationVerificationServiceResult:
+class ObservationReopenServiceResult:
     """
-    Result returned after successful observation verification.
+    Result returned after successful observation reopen.
 
     MVP purpose:
     - Return the updated observation plus created review/revision records.
@@ -47,70 +46,59 @@ class ObservationVerificationServiceResult:
 
 
 @transaction.atomic
-def verify_observation(
+def reopen_observation(
     *,
     user,
     observation: Observation,
     organization: Optional[Organization] = None,
     review_notes: str = "",
     revision_reason: str = "",
-) -> ObservationVerificationServiceResult:
+) -> ObservationReopenServiceResult:
     """
-    Verify an observation as human-reviewed scientific truth.
+    Reopen a rejected observation for review.
 
     MVP workflow:
-    - Check observation verification policy.
+    - Check observation reopen policy.
     - Capture compact before snapshot for audit.
-    - Update the canonical Observation.
+    - Move Observation from rejected back into review workflow.
     - Create an ObservationReview record.
     - Create an ObservationRevision record.
     - Create an AuditRecord for accountability.
 
     Important architecture rule:
-    Services change truth.
-    Policies decide access.
-    Audit records that a protected workflow action happened.
-    This service must not bypass policy.
-
-    Left for later:
-    - Dedicated validator for allowed status transitions.
-    - Prevent pointless repeated verification unless revision workflow requires it.
-    - Realtime event after transaction commit.
-    - More detailed before/after snapshots if needed.
+    Reopen does not verify truth.
+    Reopen only makes a rejected observation reviewable again.
+    Verification must still happen later through verify_observation().
     """
 
-    policy_result = can_verify_observation(
+    policy_result = can_reopen_observation(
         user=user,
         observation=observation,
         organization=organization,
     )
 
     if not policy_result.allowed:
-        raise ObservationVerificationDenied(policy_result.reason)
+        raise ObservationReopenDenied(policy_result.reason)
 
     require_observation_transition(
         observation=observation,
-        new_observation_status=Observation.ObservationStatus.VERIFIED,
-        new_verification_status=Observation.VerificationStatus.VERIFIED,
+        new_observation_status=Observation.ObservationStatus.IN_REVIEW,
+        new_verification_status=Observation.VerificationStatus.REVIEW_NEEDED,
     )
 
-    verified_at = timezone.now()
+    reopened_at = timezone.now()
 
     previous_observation_status = observation.observation_status
     previous_verification_status = observation.verification_status
     before_snapshot = _observation_status_snapshot(observation=observation)
 
-    observation.observation_status = Observation.ObservationStatus.VERIFIED
-    observation.verification_status = Observation.VerificationStatus.VERIFIED
-    observation.verified_by = user
-    observation.verified_at = verified_at
+    observation.observation_status = Observation.ObservationStatus.IN_REVIEW
+    observation.verification_status = Observation.VerificationStatus.REVIEW_NEEDED
 
     observation.save(
         update_fields=[
             "observation_status",
             "verification_status",
-            "verified_by",
-            "verified_at",
             "updated_at",
         ]
     )
@@ -118,16 +106,16 @@ def verify_observation(
     review = ObservationReview.objects.create(
         observation=observation,
         reviewed_by=user,
-        review_status=ObservationReview.ReviewStatus.VERIFIED,
+        review_status=ObservationReview.ReviewStatus.REVIEW_NEEDED,
         review_notes=review_notes,
-        reviewed_at=verified_at,
+        reviewed_at=reopened_at,
     )
 
     revision = ObservationRevision.objects.create(
         observation=observation,
-        revision_type=ObservationRevision.RevisionType.VERIFICATION_CHANGED,
+        revision_type=ObservationRevision.RevisionType.STATUS_CHANGED,
         changed_by=user,
-        reason=revision_reason or "Observation verified through MVP verification service.",
+        reason=revision_reason or "Observation reopened through MVP reopen service.",
         previous_observation_status=previous_observation_status,
         new_observation_status=observation.observation_status,
         previous_verification_status=previous_verification_status,
@@ -141,8 +129,8 @@ def verify_observation(
         user=user,
         observation=observation,
         organization=organization,
-        action_type=AuditRecord.ActionType.VERIFIED,
-        capability_used="verify_observations",
+        action_type=AuditRecord.ActionType.REVISED,
+        capability_used="revise_observations",
         before_snapshot=before_snapshot,
         after_snapshot=after_snapshot,
         revision=revision,
@@ -150,7 +138,7 @@ def verify_observation(
         note=review_notes,
     )
 
-    return ObservationVerificationServiceResult(
+    return ObservationReopenServiceResult(
         observation=observation,
         review=review,
         revision=revision,

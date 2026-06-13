@@ -234,3 +234,4 @@ def can_unpublish_observation(
         reason="Observation unpublication allowed.",
         capability_code="unpublish_observations",
     )
+
