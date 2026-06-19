@@ -19,6 +19,7 @@ from observations.validators.observation_transition_validator import (
     require_observation_transition,
 )
 
+
 class ObservationPublicationDenied(Exception):
     """
     Raised when a user is not allowed to publish or unpublish an observation.
@@ -94,11 +95,16 @@ def publish_observation(
     previous_verification_status = observation.verification_status
     before_snapshot = _observation_status_snapshot(observation=observation)
 
+    # Keep the database write aligned with the validated transition target.
+    # Publication changes workflow status, but the observation remains
+    # scientifically verified.
     observation.observation_status = Observation.ObservationStatus.PUBLISHED
+    observation.verification_status = Observation.VerificationStatus.VERIFIED
 
     observation.save(
         update_fields=[
             "observation_status",
+            "verification_status",
             "updated_at",
         ]
     )
@@ -183,11 +189,16 @@ def unpublish_observation(
     previous_verification_status = observation.verification_status
     before_snapshot = _observation_status_snapshot(observation=observation)
 
+    # Keep the database write aligned with the validated transition target.
+    # Unpublishing removes published workflow state, but it does not make
+    # the observation scientifically unverified.
     observation.observation_status = Observation.ObservationStatus.VERIFIED
+    observation.verification_status = Observation.VerificationStatus.VERIFIED
 
     observation.save(
         update_fields=[
             "observation_status",
+            "verification_status",
             "updated_at",
         ]
     )
