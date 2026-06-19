@@ -4,7 +4,11 @@ from typing import Optional
 from access.models.role_capability import RoleCapability
 from organizations.models.organization import Organization
 
-from .access_context_service import AccessContext, build_access_context
+from .access_context_service import (
+    AccessContext,
+    ActingOrganizationRequired,
+    build_access_context,
+)
 
 
 class CapabilityDenied(Exception):
@@ -43,6 +47,10 @@ def membership_has_capability(membership, capability_code: str) -> bool:
     - Capability must be active.
     - Capability matched by canonical code.
 
+    Architecture rule:
+    - This assumes Membership.role integrity is enforced by the Membership model.
+    - Capability checks must not depend on human role names.
+
     Left for later:
     - Multiple roles per membership if needed.
     - Direct membership capability overrides.
@@ -71,18 +79,37 @@ def check_user_capability(
     organization: Optional[Organization] = None,
 ) -> CapabilityCheckResult:
     """
-    Check whether the user has a capability in the active organization context.
+    Safely check whether the user has a capability in one organization context.
 
-    This checks capability vocabulary only.
-    It does not yet check project scope, visibility, sensitivity, target object,
-    or audit requirements. Those belong in policies and scope services.
+    MVP purpose:
+    - Return a result object instead of raising for normal permission denial.
+    - Keep boolean helpers safe for views, policies, and manual smoke tests.
+    - Make multi-organization ambiguity visible without causing surprise 500s.
+
+    Architecture rule:
+    - This checks capability vocabulary only.
+    - It does not check project scope, target object, visibility, sensitivity,
+      publication state, or audit requirements.
+    - Protected workflows must compose this with project/object-specific policies.
     """
 
-    context = build_access_context(
-        user=user,
-        organization=organization,
-        require_membership=False,
-    )
+    try:
+        context = build_access_context(
+            user=user,
+            organization=organization,
+            require_membership=False,
+        )
+    except ActingOrganizationRequired as exc:
+        return CapabilityCheckResult(
+            allowed=False,
+            capability_code=capability_code,
+            reason=str(exc),
+            context=AccessContext(
+                user=user,
+                membership=None,
+                organization=organization,
+            ),
+        )
 
     if not context.membership:
         return CapabilityCheckResult(
@@ -136,6 +163,10 @@ def user_has_capability(
 ) -> bool:
     """
     Boolean convenience wrapper for simple capability checks.
+
+    Important:
+    - This must stay safe and return False for normal denial/ambiguity.
+    - Use require_user_capability() when a service wants an exception.
     """
 
     return check_user_capability(
@@ -154,6 +185,11 @@ def require_user_capability(
     Require a capability or raise CapabilityDenied.
 
     Future services can use this before changing canonical truth.
+
+    Important:
+    - This raises only after check_user_capability() returns a denied result.
+    - Multi-organization ambiguity becomes a clear CapabilityDenied reason.
+    - Project scope, visibility, sensitivity, and audit still belong in policies.
     """
 
     result = check_user_capability(
@@ -166,3 +202,4 @@ def require_user_capability(
         raise CapabilityDenied(result.reason)
 
     return result
+
