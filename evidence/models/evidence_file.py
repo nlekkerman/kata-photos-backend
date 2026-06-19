@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import models
+from django.db.models import Q
 
 
 class EvidenceFile(models.Model):
@@ -119,6 +120,13 @@ class EvidenceFile(models.Model):
             models.Index(fields=["storage_provider"]),
             models.Index(fields=["checksum"]),
             models.Index(fields=["is_primary"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["evidence_item"],
+                condition=Q(is_primary=True),
+                name="unique_primary_file_per_evidence_item",
+            ),
         ]
 
     def __str__(self):
