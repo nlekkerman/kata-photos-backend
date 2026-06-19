@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 
@@ -140,6 +141,62 @@ class ObservationTaxon(models.Model):
             models.Index(fields=["identification_status", "confidence_level"]),
             models.Index(fields=["taxon", "identification_status"]),
         ]
+
+    def clean(self):
+        """
+        Validate taxon interpretation consistency for one Observation.
+
+        MVP purpose:
+        - Protect biological interpretation attached to canonical Observation truth.
+        - Keep unknown observations valid while blocking contradictory identified states.
+        - Prevent impossible count ranges before they pollute scientific analysis.
+
+        Architecture rule:
+        - Taxon is canonical biological identity truth.
+        - ObservationTaxon records interpretation for an observation.
+        - Confirmed/likely identification should point to a real canonical taxon.
+
+        Left for later:
+        - Expert-review workflow for identification changes.
+        - AI suggestion comparison and confidence scoring.
+        - Numeric confidence ordering in selectors instead of string enum ordering.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.count_min is not None and self.count_max is not None:
+            if self.count_min > self.count_max:
+                errors["count_max"] = (
+                    "Maximum observed count cannot be lower than minimum observed count."
+                )
+
+        taxon_required_statuses = {
+            self.IdentificationStatus.LIKELY,
+            self.IdentificationStatus.CONFIRMED,
+        }
+
+        if self.identification_status in taxon_required_statuses and not self.taxon_id:
+            errors["taxon"] = (
+                "Likely or confirmed observation taxon identification requires a canonical taxon."
+            )
+
+        if self.identified_by_id and not self.identified_at:
+            errors["identified_at"] = (
+                "Identification timestamp is required when identified_by is set."
+            )
+
+        if (
+            self.identification_status == self.IdentificationStatus.CONFIRMED
+            and not self.identified_at
+        ):
+            errors["identified_at"] = (
+                "Confirmed observation taxon identification requires identified_at."
+            )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         if self.taxon:

@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
@@ -73,6 +74,48 @@ class ObservationEvidenceLink(models.Model):
                 name="unique_primary_evidence_per_observation",
             ),
         ]
+
+    def clean(self):
+        """
+        Validate evidence-link consistency for one Observation.
+
+        MVP purpose:
+        - Keep evidence support logically consistent.
+        - Prevent disputed/context evidence from being marked as the primary proof.
+        - Protect the canonical Observation truth record from misleading evidence links.
+
+        Architecture rule:
+        - Observation remains the scientific truth record.
+        - Evidence supports truth but does not become truth by itself.
+        - Primary evidence should be direct primary/supporting proof, not disputed context.
+
+        Left for later:
+        - Link/unlink service with audit logging.
+        - Evidence visibility/sensitivity policy checks.
+        - Evidence quality scoring and review workflow.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.is_primary and self.link_type == self.LinkType.DISPUTED:
+            errors["is_primary"] = (
+                "Disputed evidence cannot be marked as primary evidence."
+            )
+
+        if self.is_primary and self.link_type == self.LinkType.CONTEXT:
+            errors["is_primary"] = (
+                "Context evidence cannot be marked as primary evidence."
+            )
+
+        if self.link_type == self.LinkType.PRIMARY and not self.is_primary:
+            errors["is_primary"] = (
+                "Evidence with primary link type must also be marked as primary."
+            )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return f"{self.observation.code} -> {self.evidence_item.code}"
