@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -131,6 +132,64 @@ class MonitoringPoint(models.Model):
             models.Index(fields=["primary_habitat"]),
             models.Index(fields=["sensitivity_level"]),
         ]
+
+    def clean(self):
+        """
+        Validate monitoring point lifecycle and private coordinate consistency.
+
+        MVP purpose:
+        - Keep monitoring points as stable scientific places.
+        - Prevent impossible lifecycle dates.
+        - Prevent half-stored private coordinates that break mapping and redaction logic.
+
+        Architecture rule:
+        - MonitoringPoint is a permanent scientific monitoring place.
+        - MonitoringPoint is not a camera and should not be moved as camera hardware moves.
+        - Private coordinates are protected scientific data and must only be exposed
+          later through policy-controlled selectors.
+
+        Left for later:
+        - Dedicated monitoring point correction/retirement service.
+        - Public-safe and workspace-safe selectors for coordinate redaction.
+        - Audit logging for private coordinate reads.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.started_at and self.retired_at:
+            if self.started_at > self.retired_at:
+                errors["retired_at"] = (
+                    "Monitoring point retired date cannot be earlier than started date."
+                )
+
+        has_latitude = self.private_latitude is not None
+        has_longitude = self.private_longitude is not None
+
+        if has_latitude != has_longitude:
+            errors["private_latitude"] = (
+                "Private latitude and private longitude must be set together."
+            )
+            errors["private_longitude"] = (
+                "Private latitude and private longitude must be set together."
+            )
+
+        if self.status == self.Status.RETIRED and not self.retired_at:
+            errors["retired_at"] = (
+                "Retired monitoring points must have retired_at set."
+            )
+
+        if self.retired_at and self.status not in {
+            self.Status.RETIRED,
+            self.Status.ARCHIVED,
+        }:
+            errors["status"] = (
+                "Only retired or archived monitoring points can have retired_at set."
+            )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return self.name_bs

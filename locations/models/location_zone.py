@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -147,6 +148,80 @@ class LocationZone(models.Model):
             models.Index(fields=["sensitivity_level"]),
             models.Index(fields=["is_public"]),
         ]
+        
+    def clean(self):
+        """
+        Validate location-zone hierarchy and coordinate consistency.
+
+        MVP purpose:
+        - Prevent a zone from becoming its own parent.
+        - Prevent half-stored public/private center coordinates.
+        - Keep public visibility flags aligned with restricted/sensitive location data.
+
+        Architecture rule:
+        - LocationZone is canonical location context, not a frontend map label.
+        - Private geometry and private coordinates are protected scientific data.
+        - Public location output must use public-safe labels/geometry later through selectors.
+
+        Left for later:
+        - Dedicated recursive parent-cycle validator.
+        - GIS/PostGIS geometry validation.
+        - Public/private coordinate redaction policies and audited access.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.pk and self.parent_zone_id == self.pk:
+            errors["parent_zone"] = "A location zone cannot be its own parent."
+
+        has_public_latitude = self.public_center_latitude is not None
+        has_public_longitude = self.public_center_longitude is not None
+
+        if has_public_latitude != has_public_longitude:
+            errors["public_center_latitude"] = (
+                "Public center latitude and longitude must be set together."
+            )
+            errors["public_center_longitude"] = (
+                "Public center latitude and longitude must be set together."
+            )
+
+        has_private_latitude = self.private_center_latitude is not None
+        has_private_longitude = self.private_center_longitude is not None
+
+        if has_private_latitude != has_private_longitude:
+            errors["private_center_latitude"] = (
+                "Private center latitude and longitude must be set together."
+            )
+            errors["private_center_longitude"] = (
+                "Private center latitude and longitude must be set together."
+            )
+
+        if self.is_public and self.visibility_level == self.VisibilityLevel.RESTRICTED:
+            errors["is_public"] = (
+                "Restricted location zones cannot be marked public."
+            )
+
+        if self.is_public and self.precision_level == self.PrecisionLevel.HIDDEN:
+            errors["precision_level"] = (
+                "Public location zones cannot use hidden precision."
+            )
+
+        if (
+            self.is_public
+            and self.sensitivity_level
+            in {
+                self.SensitivityLevel.HIGHLY_SENSITIVE,
+                self.SensitivityLevel.CRITICAL,
+            }
+        ):
+            errors["sensitivity_level"] = (
+                "Highly sensitive or critical location zones cannot be marked public."
+            )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return self.name_bs

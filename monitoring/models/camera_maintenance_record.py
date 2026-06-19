@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -86,6 +87,40 @@ class CameraMaintenanceRecord(models.Model):
             models.Index(fields=["maintenance_type"]),
             models.Index(fields=["performed_at"]),
         ]
+
+    def clean(self):
+        """
+        Validate maintenance record consistency.
+
+        MVP purpose:
+        - Keep camera maintenance history attached to the correct physical camera.
+        - Prevent maintenance from referencing a deployment for a different camera.
+        - Protect future evidence reliability analysis from corrupted equipment history.
+
+        Architecture rule:
+        - CameraMaintenanceRecord preserves equipment history.
+        - CameraDeployment preserves where/when the camera was placed.
+        - If maintenance references a deployment, that deployment must belong to
+          the same camera as the maintenance record.
+
+        Left for later:
+        - Maintenance workflow services.
+        - Audit logging for damage/loss/sensitive maintenance notes.
+        - Evidence quality impact rules.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.deployment_id and self.camera_id:
+            if self.deployment.camera_id != self.camera_id:
+                errors["deployment"] = (
+                    "Maintenance deployment must belong to the same camera."
+                )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return f"{self.camera} - {self.get_maintenance_type_display()} at {self.performed_at}"
