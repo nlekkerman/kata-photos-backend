@@ -191,6 +191,7 @@ def can_reject_observation(
         capability_code="reject_observations",
     )
 
+
 def can_reopen_observation(*, user, observation, organization=None):
     """
     Decide whether a rejected observation can be reopened for review.
@@ -199,24 +200,24 @@ def can_reopen_observation(*, user, observation, organization=None):
     - Reopening rejected observations is a protected scientific workflow action.
     - Reopen does not verify the observation.
     - Reopen only returns it to review workflow.
+
+    Architecture rule:
+    - Reopen changes workflow state, so it requires revise_observations.
+    - This keeps policy permission aligned with service audit records.
+    - Normal review still uses review_observations.
     """
 
-    base_result = can_review_observation(
-        user=user,
-        observation=observation,
-        organization=organization,
-    )
-
-    if not base_result.allowed:
-        return base_result
-
-    if observation.observation_status != observation.ObservationStatus.REJECTED:
+    if observation.observation_status != Observation.ObservationStatus.REJECTED:
         return ObservationVerificationResult(
             allowed=False,
             reason="Only rejected observations can be reopened through this workflow.",
+            capability_code="revise_observations",
         )
 
-    return ObservationVerificationResult(
-        allowed=True,
-        reason="Observation reopen allowed.",
+    return _check_base_verification_access(
+        user=user,
+        observation=observation,
+        organization=organization,
+        capability_code="revise_observations",
     )
+
