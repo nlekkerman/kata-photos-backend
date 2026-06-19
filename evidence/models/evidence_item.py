@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -176,6 +177,58 @@ class EvidenceItem(models.Model):
             models.Index(fields=["recorded_at"]),
             models.Index(fields=["capture_started_at"]),
         ]
+        
+    def clean(self):
+        """
+        Validate EvidenceItem project and capture-context consistency.
+
+        MVP purpose:
+        - Keep evidence tied to one coherent project context.
+        - Prevent evidence from referencing monitoring points or deployments from another project.
+        - Protect downstream Observation creation from corrupted evidence context.
+
+        Architecture rule:
+        - Evidence supports Observation truth but does not replace Observation truth.
+        - EvidenceItem project, monitoring point, and camera deployment must describe
+          the same scientific context.
+        - CameraDeployment is time-bound placement context for camera-based evidence.
+
+        Left for later:
+        - Evidence create/update service with audit logging.
+        - Public-safe evidence selectors and redaction policy.
+        - Automatic recorded_at derivation from capture_started_at if desired.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.capture_started_at and self.capture_ended_at:
+            if self.capture_started_at > self.capture_ended_at:
+                errors["capture_ended_at"] = (
+                    "Evidence capture end time cannot be earlier than capture start time."
+                )
+
+        if self.monitoring_point_id and self.project_id:
+            if self.monitoring_point.project_id != self.project_id:
+                errors["monitoring_point"] = (
+                    "Evidence monitoring point must belong to the same project."
+                )
+
+        if self.camera_deployment_id and self.project_id:
+            if self.camera_deployment.project_id != self.project_id:
+                errors["camera_deployment"] = (
+                    "Evidence camera deployment must belong to the same project."
+                )
+
+        if self.monitoring_point_id and self.camera_deployment_id:
+            if self.camera_deployment.monitoring_point_id != self.monitoring_point_id:
+                errors["camera_deployment"] = (
+                    "Evidence camera deployment must match the selected monitoring point."
+                )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return f"{self.code} - {self.title_bs}"

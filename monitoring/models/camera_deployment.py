@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -92,6 +93,76 @@ class CameraDeployment(models.Model):
             models.Index(fields=["started_at"]),
             models.Index(fields=["ended_at"]),
         ]
+        
+    def clean(self):
+        """
+        Validate camera deployment timing and project context.
+
+        MVP purpose:
+        - Prevent one deployment from having impossible dates.
+        - Keep deployment project aligned with the selected monitoring point.
+        - Prevent one camera from having overlapping active placement windows.
+
+        Architecture rule:
+        - CameraDeployment is the time-bound placement context for camera evidence.
+        - Camera location history belongs here, not directly on Camera.
+        - A camera cannot be physically active in two overlapping deployments.
+
+        Left for later:
+        - Dedicated deployment start/end services.
+        - Audit logging for deployment changes.
+        - More advanced validation for paused/retired/archive workflows.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.started_at and self.ended_at:
+            if self.started_at > self.ended_at:
+                errors["ended_at"] = (
+                    "Deployment end time cannot be earlier than deployment start time."
+                )
+
+        if self.monitoring_point_id and self.project_id:
+            if self.monitoring_point.project_id != self.project_id:
+                errors["monitoring_point"] = (
+                    "Deployment monitoring point must belong to the same project."
+                )
+
+        overlapping_statuses = {
+            self.Status.PLANNED,
+            self.Status.ACTIVE,
+            self.Status.PAUSED,
+        }
+
+        if (
+            self.camera_id
+            and self.started_at
+            and self.status in overlapping_statuses
+        ):
+            overlapping_deployments = CameraDeployment.objects.filter(
+                camera_id=self.camera_id,
+                status__in=overlapping_statuses,
+            ).exclude(pk=self.pk)
+
+            if self.ended_at:
+                overlapping_deployments = overlapping_deployments.filter(
+                    started_at__lte=self.ended_at,
+                )
+
+            overlapping_deployments = overlapping_deployments.filter(
+                models.Q(ended_at__isnull=True)
+                | models.Q(ended_at__gte=self.started_at)
+            )
+
+            if overlapping_deployments.exists():
+                errors["camera"] = (
+                    "Camera already has an overlapping planned, active, or paused deployment."
+                )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return f"{self.code} - {self.camera} at {self.monitoring_point}"
