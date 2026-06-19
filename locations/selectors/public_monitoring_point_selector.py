@@ -9,30 +9,30 @@ def get_public_monitoring_points() -> QuerySet[MonitoringPoint]:
 
     MVP purpose:
     - Give future public APIs one canonical place to read public monitoring points.
-    - Exclude private, sensitive, hidden, retired, and archived monitoring points.
+    - Exclude retired/archived/non-active monitoring points.
+    - Exclude sensitive or restricted monitoring points.
     - Prevent public views from accidentally exposing exact monitoring locations.
 
     Architecture rule:
     - MonitoringPoint is a permanent scientific monitoring place.
-    - Private coordinates are protected scientific data.
-    - Public APIs must not expose private latitude/longitude or private notes.
+    - Private latitude/longitude are protected scientific data.
+    - Public selectors must use public labels/precision only, not private coordinates.
+
+    Important current limitation:
+    - MonitoringPoint does not currently have an is_public field.
+    - Public eligibility is therefore derived conservatively from active status
+      and non-sensitive sensitivity level until an explicit public flag exists later.
 
     Left for later:
+    - Explicit public visibility flag if needed.
     - Public-safe approximate coordinate selector.
     - Workspace/research selectors with scoped RBAC and audit.
-    - Project-specific public monitoring maps.
     """
 
     return (
         MonitoringPoint.objects.filter(
-            is_public=True,
             status=MonitoringPoint.Status.ACTIVE,
-        )
-        .exclude(
-            sensitivity_level__in=[
-                MonitoringPoint.SensitivityLevel.SENSITIVE,
-                MonitoringPoint.SensitivityLevel.RESTRICTED,
-            ]
+            sensitivity_level=MonitoringPoint.SensitivityLevel.NORMAL,
         )
         .select_related(
             "project",
@@ -49,7 +49,7 @@ def get_public_monitoring_point_by_slug(slug: str) -> MonitoringPoint | None:
 
     MVP purpose:
     - Give future public detail APIs a safe lookup helper.
-    - Return None instead of leaking non-public or sensitive monitoring points.
+    - Return None instead of leaking inactive or sensitive monitoring points.
 
     Architecture rule:
     - Public monitoring-point lookup must use the same safety rules as public lists.
