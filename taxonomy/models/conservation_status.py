@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -83,5 +84,38 @@ class ConservationStatus(models.Model):
             models.Index(fields=["jurisdiction"]),
         ]
 
+    def clean(self):
+        """
+        Validate conservation-status date consistency.
+
+        MVP purpose:
+        - Preserve conservation status history without impossible date ranges.
+        - Keep global, local, national, legal, and project-specific statuses flexible.
+        - Avoid overbuilding current-status rules before selectors depend on them.
+
+        Architecture rule:
+        - ConservationStatus supports conservation/scientific context.
+        - ConservationStatus does not replace Taxon identity truth.
+        - Current-status selection belongs in a selector later, not in loose UI logic.
+
+        Left for later:
+        - Current conservation status selector.
+        - Overlap validation for same taxon/status_type/jurisdiction.
+        - Source document attachments and review workflow.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.valid_from and self.valid_to:
+            if self.valid_from > self.valid_to:
+                errors["valid_to"] = (
+                    "Conservation status valid_to cannot be earlier than valid_from."
+                )
+
+        if errors:
+            raise ValidationError(errors)
+    
     def __str__(self):
         return f"{self.taxon} - {self.get_status_value_display()}"

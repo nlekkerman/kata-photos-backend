@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -130,6 +131,66 @@ class Taxon(models.Model):
             models.Index(fields=["is_sensitive"]),
             models.Index(fields=["is_published"]),
         ]
+
+    def clean(self):
+        """
+        Validate taxon hierarchy and sensitivity consistency.
+
+        MVP purpose:
+        - Prevent circular biological hierarchy records.
+        - Keep sensitive-taxon flags aligned for future selectors and policies.
+        - Preserve Taxon as canonical biological identity truth.
+
+        Architecture rule:
+        - Taxon is biological identity truth, not a gallery tag or frontend label.
+        - Taxon hierarchy must be acyclic.
+        - Sensitive taxa must be consistently marked before public/workspace APIs use them.
+
+        Left for later:
+        - Dedicated taxonomy correction/revision workflow.
+        - Rank-order validation for strict taxonomy hierarchy.
+        - Sensitive taxon access policy and public-safe selectors.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.pk and self.parent_taxon_id == self.pk:
+            errors["parent_taxon"] = "A taxon cannot be its own parent."
+
+        current_parent = self.parent_taxon
+        visited_ids = set()
+
+        while current_parent:
+            if current_parent.pk in visited_ids:
+                errors["parent_taxon"] = (
+                    "Taxon parent chain contains a cycle."
+                )
+                break
+
+            visited_ids.add(current_parent.pk)
+
+            if self.pk and current_parent.pk == self.pk:
+                errors["parent_taxon"] = (
+                    "Taxon parent chain cannot contain this taxon."
+                )
+                break
+
+            current_parent = current_parent.parent_taxon
+
+        if self.sensitivity_level == self.SensitivityLevel.NORMAL and self.is_sensitive:
+            errors["is_sensitive"] = (
+                "Taxa with normal sensitivity level must not be marked sensitive."
+            )
+
+        if self.sensitivity_level != self.SensitivityLevel.NORMAL and not self.is_sensitive:
+            errors["is_sensitive"] = (
+                "Taxa with sensitive, highly sensitive, or critical sensitivity level must be marked sensitive."
+            )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return self.canonical_display_name_bs

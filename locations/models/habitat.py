@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -75,6 +76,56 @@ class Habitat(models.Model):
             models.Index(fields=["habitat_type"]),
             models.Index(fields=["is_published"]),
         ]
+
+    def clean(self):
+        """
+        Validate habitat hierarchy consistency.
+
+        MVP purpose:
+        - Prevent a habitat from becoming its own parent.
+        - Prevent simple parent-chain cycles that break hierarchy traversal.
+        - Keep Habitat as canonical ecological vocabulary, not loose frontend text.
+
+        Architecture rule:
+        - Habitat describes ecological context.
+        - Habitat hierarchy must remain acyclic.
+        - Habitat changes over time belong to future HabitatChangeRecord, not random text fields.
+
+        Left for later:
+        - Dedicated habitat hierarchy service.
+        - HabitatChangeRecord.
+        - Public-safe habitat selectors.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.pk and self.parent_habitat_id == self.pk:
+            errors["parent_habitat"] = "A habitat cannot be its own parent."
+
+        current_parent = self.parent_habitat
+        visited_ids = set()
+
+        while current_parent:
+            if current_parent.pk in visited_ids:
+                errors["parent_habitat"] = (
+                    "Habitat parent chain contains a cycle."
+                )
+                break
+
+            visited_ids.add(current_parent.pk)
+
+            if self.pk and current_parent.pk == self.pk:
+                errors["parent_habitat"] = (
+                    "Habitat parent chain cannot contain this habitat."
+                )
+                break
+
+            current_parent = current_parent.parent_habitat
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return self.name_bs
