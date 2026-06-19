@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -247,6 +248,86 @@ class Observation(models.Model):
             models.Index(fields=["project", "recorded_at"]),
             models.Index(fields=["sensitivity_level", "visibility_level"]),
         ]
+    def clean(self):
+        """
+        Validate impossible Observation status combinations.
+
+        MVP purpose:
+        - Protect the canonical Observation truth record from contradictory states.
+        - Keep workflow services, admin edits, and future APIs aligned.
+        - Catch impossible status pairs before they become scientific history.
+
+        Architecture rule:
+        - Observation is the scientific truth spine.
+        - Observation status and verification status must tell the same lifecycle story.
+        - Services still own workflow transitions; this model validation protects baseline truth.
+
+        Left for later:
+        - Add database-level constraints only after the workflow is stable.
+        - Add public visibility/sensitivity validation once public-safe selectors exist.
+        - Add project/location/evidence consistency validation in separate patches.
+        """
+
+        super().clean()
+
+        errors = {}
+
+        if self.observed_started_at and self.observed_ended_at:
+            if self.observed_started_at > self.observed_ended_at:
+                errors["observed_ended_at"] = (
+                    "Observed end time cannot be earlier than observed start time."
+                )
+
+        if (
+            self.observation_status == self.ObservationStatus.VERIFIED
+            and self.verification_status != self.VerificationStatus.VERIFIED
+        ):
+            errors["verification_status"] = (
+                "Verified observations must have verified verification status."
+            )
+
+        if (
+            self.observation_status == self.ObservationStatus.PUBLISHED
+            and self.verification_status != self.VerificationStatus.VERIFIED
+        ):
+            errors["verification_status"] = (
+                "Published observations must remain scientifically verified."
+            )
+
+        if (
+            self.observation_status == self.ObservationStatus.REJECTED
+            and self.verification_status != self.VerificationStatus.REJECTED
+        ):
+            errors["verification_status"] = (
+                "Rejected observations must have rejected verification status."
+            )
+
+        if (
+            self.observation_status == self.ObservationStatus.DRAFT
+            and self.verification_status == self.VerificationStatus.VERIFIED
+        ):
+            errors["verification_status"] = (
+                "Draft observations cannot already be verified."
+            )
+
+        if (
+            self.observation_status == self.ObservationStatus.SUBMITTED
+            and self.verification_status == self.VerificationStatus.VERIFIED
+        ):
+            errors["verification_status"] = (
+                "Submitted observations cannot already be verified."
+            )
+
+        if (
+            self.observation_status == self.ObservationStatus.IN_REVIEW
+            and self.verification_status == self.VerificationStatus.VERIFIED
+        ):
+            errors["verification_status"] = (
+                "In-review observations cannot already be verified."
+            )
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return f"{self.code} - {self.get_observation_type_display()}"
