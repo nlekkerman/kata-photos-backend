@@ -13,10 +13,6 @@ def get_public_ready_video_queryset() -> QuerySet[VideoClip]:
     - Only includes videos safe for public visitors.
     - Excludes private, uploading, processing, failed, and unpublished videos.
     - Uses the same newest-first ordering as the public video list cursor.
-
-    Later:
-    - Add album-scoped navigation when frontend passes album context.
-    - Add tag/search-scoped navigation if public browse state should be preserved.
     """
     return (
         VideoClip.objects
@@ -26,15 +22,24 @@ def get_public_ready_video_queryset() -> QuerySet[VideoClip]:
     )
 
 
+def get_public_ready_gallery_video_queryset(video: VideoClip) -> QuerySet[VideoClip]:
+    """
+    Return public-ready videos from the same gallery/album as the current video.
+
+    This prevents previous/next navigation from jumping across unrelated galleries.
+    """
+    return get_public_ready_video_queryset().filter(album_id=video.album_id)
+
+
 def get_previous_public_video(video: VideoClip) -> Optional[VideoClip]:
     """
-    Return the newer public-ready video before the current video.
+    Return the newer public-ready video before the current video in the same gallery.
 
-    Public list order is newest-first: -created_at, -id.
-    Therefore "previous" means the item above current in that list.
+    Public gallery order is newest-first: -created_at, -id.
+    Therefore "previous" means the item above current in that gallery list.
     """
     return (
-        get_public_ready_video_queryset()
+        get_public_ready_gallery_video_queryset(video)
         .filter(
             Q(created_at__gt=video.created_at)
             | Q(created_at=video.created_at, id__gt=video.id)
@@ -46,13 +51,13 @@ def get_previous_public_video(video: VideoClip) -> Optional[VideoClip]:
 
 def get_next_public_video(video: VideoClip) -> Optional[VideoClip]:
     """
-    Return the older public-ready video after the current video.
+    Return the older public-ready video after the current video in the same gallery.
 
-    Public list order is newest-first: -created_at, -id.
-    Therefore "next" means the item below current in that list.
+    Public gallery order is newest-first: -created_at, -id.
+    Therefore "next" means the item below current in that gallery list.
     """
     return (
-        get_public_ready_video_queryset()
+        get_public_ready_gallery_video_queryset(video)
         .filter(
             Q(created_at__lt=video.created_at)
             | Q(created_at=video.created_at, id__lt=video.id)
@@ -83,12 +88,13 @@ def serialize_public_video_nav_item(video: Optional[VideoClip], *, lang: str) ->
         "title_bs": video.title_bs,
         "title_en": video.title_en,
         "cloudflare_thumbnail_url": video.cloudflare_thumbnail_url,
+        "album_id": video.album_id,
     }
 
 
 def get_public_video_navigation(video: VideoClip, *, lang: str) -> dict:
     """
-    Return public-safe previous/next navigation for a public-ready video.
+    Return public-safe previous/next navigation inside the current video's gallery.
     """
     previous_video = get_previous_public_video(video)
     next_video = get_next_public_video(video)
