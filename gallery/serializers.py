@@ -1,8 +1,7 @@
 from rest_framework import serializers
-
 from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage, VisitorMessageReply
 from .share_helpers import album_share_info, media_share_info, video_share_info
-
+from .selectors.public_video_navigation import get_public_video_navigation
 # ---------------------------------------------------------------------------
 # Upload safety constants (Phase 6)
 # ---------------------------------------------------------------------------
@@ -1365,8 +1364,11 @@ class PublicVideoCardSerializer(serializers.ModelSerializer):
 class PublicVideoDetailSerializer(serializers.ModelSerializer):
     """Serializer for the public video detail endpoint.
 
-    Returns a resolved ``title``, ``description``, flat album fields, and tags.
-    Does NOT expose admin-only or upload-only fields.
+    Returns a resolved ``title``, ``description``, flat album fields, tags,
+    public-safe previous/next navigation, and share metadata.
+
+    Navigation query rules live in ``gallery/selectors/public_video_navigation.py``.
+    This serializer only adds the selector result to the API response.
     """
 
     title = serializers.SerializerMethodField()
@@ -1375,6 +1377,8 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
     album_title = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
     approved_comments_count = serializers.SerializerMethodField()
+    previous_video = serializers.SerializerMethodField()
+    next_video = serializers.SerializerMethodField()
     share_url = serializers.SerializerMethodField()
     facebook_share_url = serializers.SerializerMethodField()
     frontend_url = serializers.SerializerMethodField()
@@ -1395,11 +1399,30 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
             'tags',
             'approved_comments_count',
             'created_at',
+            'previous_video',
+            'next_video',
             'share_url',
             'facebook_share_url',
             'frontend_url',
             'is_shareable',
         ]
+
+    def _get_video_navigation(self, obj):
+        """
+        Cache previous/next navigation for this serializer instance.
+
+        Prevents duplicate selector calls because previous_video and next_video
+        are exposed as separate serializer fields.
+        """
+        cache_attr = f'_public_video_navigation_{obj.pk}'
+        if not hasattr(self, cache_attr):
+            lang = self.context.get('lang', 'bs')
+            setattr(
+                self,
+                cache_attr,
+                get_public_video_navigation(obj, lang=lang),
+            )
+        return getattr(self, cache_attr)
 
     def get_title(self, obj):
         lang = self.context.get('lang', 'bs')
@@ -1418,6 +1441,18 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
         lang = self.context.get('lang', 'bs')
         return resolve_translated(obj.album, 'title', lang) or obj.album.title
 
+    def get_approved_comments_count(self, obj):
+        return VideoTimestampComment.objects.filter(
+            video=obj,
+            status=VideoTimestampComment.STATUS_APPROVED,
+        ).count()
+
+    def get_previous_video(self, obj):
+        return self._get_video_navigation(obj)['previous_video']
+
+    def get_next_video(self, obj):
+        return self._get_video_navigation(obj)['next_video']
+
     def get_share_url(self, obj):
         return video_share_info(obj, self.context.get('request'))['share_url']
 
@@ -1427,15 +1462,8 @@ class PublicVideoDetailSerializer(serializers.ModelSerializer):
     def get_frontend_url(self, obj):
         return video_share_info(obj, self.context.get('request'))['frontend_url']
 
-    def get_approved_comments_count(self, obj):
-        return VideoTimestampComment.objects.filter(
-            video=obj,
-            status=VideoTimestampComment.STATUS_APPROVED,
-        ).count()
-
     def get_is_shareable(self, obj):
         return video_share_info(obj, self.context.get('request'))['is_shareable']
-
 
 # ---------------------------------------------------------------------------
 # Public album serializers (Phase 3A — canonical public album browsing)
