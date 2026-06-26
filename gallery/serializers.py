@@ -1,3 +1,4 @@
+from pathlib import Path
 from rest_framework import serializers
 from .models import Album, FieldNote, MediaItem, Tag, VideoClip, VideoTimestampComment, VisitorMessage, VisitorMessageReply
 from .share_helpers import album_share_info, media_share_info, video_share_info
@@ -10,6 +11,17 @@ ALLOWED_IMAGE_CONTENT_TYPES = {
     "image/jpeg",
     "image/png",
     "image/webp",
+}
+MAX_VIDEO_UPLOAD_SIZE_MB = 500
+ALLOWED_VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".mov",
+    ".m4v",
+}
+ALLOWED_VIDEO_CONTENT_TYPES = {
+    "video/mp4",
+    "video/quicktime",
+    "video/x-m4v",
 }
 
 
@@ -588,12 +600,55 @@ class VideoClipDirectUploadRequestSerializer(serializers.Serializer):
     description_en = serializers.CharField(allow_blank=True, default="")
     max_duration_seconds = serializers.IntegerField(required=False, default=300)
     original_filename = serializers.CharField(max_length=255, allow_blank=True, default="")
+    original_content_type = serializers.CharField(max_length=120, allow_blank=True, default="")
+    original_file_size = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate_original_filename(self, value):
+        value = value.strip()
+
+        if not value:
+            return value
+
+        extension = Path(value).suffix.lower()
+
+        if extension not in ALLOWED_VIDEO_EXTENSIONS:
+            allowed = ", ".join(sorted(ALLOWED_VIDEO_EXTENSIONS))
+            raise serializers.ValidationError(
+                f"Unsupported video extension '{extension}'. Allowed extensions: {allowed}."
+            )
+
+        return value
+
+    def validate_original_content_type(self, value):
+        value = value.strip().lower()
+
+        if not value:
+            return value
+
+        if value not in ALLOWED_VIDEO_CONTENT_TYPES:
+            allowed = ", ".join(sorted(ALLOWED_VIDEO_CONTENT_TYPES))
+            raise serializers.ValidationError(
+                f"Unsupported video content type '{value}'. Allowed content types: {allowed}."
+            )
+
+        return value
+
+    def validate_original_file_size(self, value):
+        if value is None:
+            return value
+
+        max_bytes = MAX_VIDEO_UPLOAD_SIZE_MB * 1024 * 1024
+        if value > max_bytes:
+            raise serializers.ValidationError(
+                f"Video file too large. Maximum allowed size is {MAX_VIDEO_UPLOAD_SIZE_MB} MB."
+            )
+
+        return value
 
     def validate_max_duration_seconds(self, value):
         if value <= 0:
             raise serializers.ValidationError("max_duration_seconds must be a positive integer.")
         return value
-
 
 # ===========================================================================
 # Admin-only serializers
@@ -1052,15 +1107,58 @@ class AdminVideoDirectUploadSerializer(serializers.Serializer):
     description_en = serializers.CharField(allow_blank=True, default="")
     max_duration_seconds = serializers.IntegerField(required=False, default=300)
     original_filename = serializers.CharField(max_length=255, allow_blank=True, default="")
+    original_content_type = serializers.CharField(max_length=120, allow_blank=True, default="")
+    original_file_size = serializers.IntegerField(required=False, allow_null=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(), many=True, required=False
     )
+
+    def validate_original_filename(self, value):
+        value = value.strip()
+
+        if not value:
+            return value
+
+        extension = Path(value).suffix.lower()
+
+        if extension not in ALLOWED_VIDEO_EXTENSIONS:
+            allowed = ", ".join(sorted(ALLOWED_VIDEO_EXTENSIONS))
+            raise serializers.ValidationError(
+                f"Unsupported video extension '{extension}'. Allowed extensions: {allowed}."
+            )
+
+        return value
+
+    def validate_original_content_type(self, value):
+        value = value.strip().lower()
+
+        if not value:
+            return value
+
+        if value not in ALLOWED_VIDEO_CONTENT_TYPES:
+            allowed = ", ".join(sorted(ALLOWED_VIDEO_CONTENT_TYPES))
+            raise serializers.ValidationError(
+                f"Unsupported video content type '{value}'. Allowed content types: {allowed}."
+            )
+
+        return value
+
+    def validate_original_file_size(self, value):
+        if value is None:
+            return value
+
+        max_bytes = MAX_VIDEO_UPLOAD_SIZE_MB * 1024 * 1024
+        if value > max_bytes:
+            raise serializers.ValidationError(
+                f"Video file too large. Maximum allowed size is {MAX_VIDEO_UPLOAD_SIZE_MB} MB."
+            )
+
+        return value
 
     def validate_max_duration_seconds(self, value):
         if value <= 0:
             raise serializers.ValidationError("max_duration_seconds must be a positive integer.")
         return value
-
 
 class AdminVideoCompleteUploadSerializer(serializers.Serializer):
     """Request body for POST /admin/videos/complete-upload/.

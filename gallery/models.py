@@ -301,6 +301,9 @@ class VideoClip(models.Model):
 
     # Upload audit fields
     original_filename = models.CharField(max_length=255, blank=True, default='')
+    original_content_type = models.CharField(max_length=120, blank=True, default='')
+    original_file_size = models.PositiveBigIntegerField(null=True, blank=True)
+    original_extension = models.CharField(max_length=20, blank=True, default='')
     submitted_title_bs = models.CharField(max_length=255, blank=True, default='')
     title_source = models.CharField(
         max_length=20,

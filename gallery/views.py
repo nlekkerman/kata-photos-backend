@@ -1,6 +1,6 @@
 import io
 import logging
-
+from pathlib import Path
 from django.conf import settings
 from django.db.models import Count, Exists, OuterRef, Q
 from django.utils.decorators import method_decorator
@@ -284,6 +284,9 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
         from .services.video_titles import resolve_video_titles
 
         original_filename = (data.get('original_filename') or '').strip()
+        original_extension = Path(original_filename).suffix.lower() if original_filename else ""
+        original_content_type = (data.get('original_content_type') or '').strip()
+        original_file_size = data.get('original_file_size')
         submitted_title_bs = (data.get('title_bs') or '').strip()
 
         title_bs, title_en, title_source = resolve_video_titles(
@@ -323,7 +326,13 @@ class VideoClipDirectUploadView(generics.GenericAPIView):
             cloudflare_uid=cf_result['uid'],
             status=VideoClip.STATUS_UPLOADING,
             is_public=False,
+
+            # Store original upload metadata for debugging format/codec issues.
             original_filename=original_filename,
+            original_extension=original_extension,
+            original_content_type=original_content_type,
+            original_file_size=original_file_size,
+
             submitted_title_bs=submitted_title_bs,
             title_source=title_source,
         )
